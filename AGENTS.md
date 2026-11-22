@@ -48,7 +48,7 @@ An education platform for medical/clinical learners combining:
 | Validation      | Zod                                                                                                     |
 | Caching         | Next.js Data Cache + tag revalidation on publish (Payload hooks)                                        |
 | Styling         | Tailwind CSS v4                                                                                         |
-| Testing         | Vitest                                                                                                  |
+| Testing         | Vitest (`pg` is a dev dependency only, used by the integration-test harness)                            |
 | Lint/format     | ESLint + Prettier                                                                                       |
 | Runtime         | Node.js `^24.22.3` (Payload's minimum; `.nvmrc` pins major 24)                                          |
 | Package manager | pnpm 11 (pinned via `packageManager`; build scripts allowlisted in `pnpm-workspace.yaml` `allowBuilds`) |
@@ -111,9 +111,11 @@ All collections use Payload's field types. Timestamps (`createdAt`, `updatedAt`)
 - `provider` — `email` | `google`
 - `googleSub` (string, unique, nullable — Google account ID)
 - `role` — `learner` (default) | `admin`
-- `emailVerified`
+- `emailVerified` (added with email verification in Phase 4)
 - Access: learners can read/update self (never their own `role`); admins full access.
 - Admins are `Users` with `role: 'admin'`. Payload admin panel access is gated on `role === 'admin'`. There is no separate `Admins` collection and only one editorial role in v1.
+- The first account ever created becomes an admin; every later one is a `learner`.
+- Deleting a user first deletes their `AnswerEvents` and `RefreshTokens` (a `beforeDelete` hook, because the foreign keys are nulled once the row is gone).
 
 ### `Domains`
 
@@ -122,14 +124,17 @@ The canonical taxonomy for organizing everything (e.g., Cardiology, Pharmacology
 - `name` (required)
 - `slug` (unique, required)
 - `description`
-- `parent` (self-relation, optional — supports sub-domains; max depth 2)
+- `parent` (self-relation, optional — supports sub-domains; max depth 2, enforced on save)
 - `order` (number, for display)
+- No drafts: taxonomy is public as soon as it is saved. Cannot be deleted while topics, sub-domains, lectures, papers or videos use it.
 
 ### `Topics`
 
 Finer-grained categorization for flashcards and questions.
 
 - `name`, `slug` (unique), `domain` (relation → Domains, required), `order`
+- No drafts. Cannot be deleted while flashcards or questions use it.
+- Moving a topic to another domain updates the denormalized `domain` on its flashcards and questions directly in the database (no validation, no new versions).
 
 ### `Lectures`
 
@@ -186,8 +191,9 @@ Finer-grained categorization for flashcards and questions.
 ### `Videos`
 
 - `title`, `slug` (unique)
-- `embedUrl` (YouTube/Vimeo — validated and normalized on save)
-- `provider` — `youtube` | `vimeo` | `other` (derived from `embedUrl`)
+- `embedUrl` (YouTube or Vimeo only, validated on publish and normalized on save to `youtube-nocookie.com/embed/<id>` or `player.vimeo.com/video/<id>`; any other host is rejected, so only vetted providers are ever put in an iframe)
+- `provider` — `youtube` | `vimeo` | `other` (derived from `embedUrl`; `other` is reserved and not accepted yet)
+- `providerVideoId` (derived; the API builds the YouTube thumbnail from it when no `thumbnail` is uploaded)
 - `description` (rich text)
 - `thumbnail` (upload → Media, optional — falls back to the provider thumbnail)
 - `domain` (relation → Domains)
@@ -355,8 +361,11 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 ### Payload
 
 - Collections are defined in `apps/web/src/collections/*.ts` and registered in `payload.config.ts`.
-- All content collections use drafts (`versions: { drafts: true }`). The **public API only ever reads published content**: non-admin `access.read` returns `{ _status: { equals: 'published' } }`, and the custom API layer queries with `draft: false`.
+- Lectures, flashcards, questions, papers and videos use drafts (`versions: { drafts: true }`); domains and topics do not. The **public API only ever reads published content**: non-admin `access.read` returns `{ _status: { equals: 'published' } }`, and the custom API layer queries with `draft: false`. Version history (`readVersions`) is admin-only.
 - Use Payload **hooks** for side effects (revalidation, denormalization, derived fields). No side effects in React components.
+- **Schema changes go through migrations, never dev push.** `createConfig()` sets `push: false`. After changing a collection run `pnpm --filter @medipedia/web migrate:create <name>`, review the SQL, commit it, then `pnpm --filter @medipedia/web migrate`. Payload refuses to migrate a database that dev push has touched (it records a `dev` row in `payload_migrations`), so keep dev servers on `push: false`.
+- Local API calls from scripts, seeds and bulk jobs pass `context: { disableRevalidate: true }` so the revalidation hooks stay quiet outside a Next.js request.
+- The Payload config is built by `createConfig()` in `src/config.ts` (`payload.config.ts` only calls it) so tests can build it against another Postgres schema.
 
 ### Styling & UI
 
@@ -367,9 +376,10 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 
 ### Testing
 
-- Unit tests with **Vitest** for `packages/shared` (schemas), SM-2, and server utilities.
-- Integration tests for the custom API layer using **Vitest + a test Postgres** (Neon branch or local Postgres in CI).
+- Unit tests (`pnpm test`, `*.test.ts`) with **Vitest** for `packages/shared` (schemas), SM-2, hooks, access functions and server utilities. They never touch a database.
+- Integration tests (`pnpm test:int`, `*.int.test.ts`) run against a real Postgres (`DATABASE_URL`): the harness in `src/test/harness.ts` creates a throwaway schema, builds Payload against it and drops it afterwards, so it is safe to run against a dev database. CI runs them against a Postgres service container.
 - Required integration tests: no GET route leaks question correctness; Payload REST (`/api/cms/questions`) does not return protected fields to non-admins; refresh rotation and reuse detection; publish hooks call revalidation.
+- `src/collections/collections.test.ts` pins the security-relevant collection settings (field-level access, admin-only versions, server-only collections). If it fails, a refactor weakened a rule.
 - **No tests for Payload collections' internals** — trust Payload; test our code.
 - E2E with Playwright is deferred to v2.
 
@@ -382,7 +392,7 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 
 ## 11. Environment Variables
 
-Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env fails the build). A variable stays optional in `env.ts` until the phase that first uses it, then becomes required: Phase 1 needs `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `PAYLOAD_SECRET` and `NEXT_PUBLIC_SITE_URL`; Phase 2 adds `BLOB_READ_WRITE_TOKEN`; Phase 4 adds the auth and email variables.
+Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env fails the build). A variable stays optional in `env.ts` until the phase that first uses it, then becomes required: Phase 1 needs `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `PAYLOAD_SECRET` and `NEXT_PUBLIC_SITE_URL`; `BLOB_READ_WRITE_TOKEN` is optional locally, where uploads fall back to `apps/web/media`, and required on Vercel preview and production (`VERCEL_ENV`); Phase 4 adds the auth and email variables.
 
 | Variable                | Purpose                                                               |
 | ----------------------- | --------------------------------------------------------------------- |
@@ -442,10 +452,11 @@ Each phase is shippable and tested before moving on.
 
 - All collections implemented (§4) with drafts, access controls and field-level access.
 - Hooks: domain denormalization, exactly-one-correct validation, choice labels, video URL validation/provider/thumbnail, slug generation, publish → tag revalidation.
-- Media uploads via Vercel Blob.
-- Dev seed script with sample content for every type.
+- Media uploads via Vercel Blob (local disk in development when no token is set).
+- Dev seed script with sample content for every type (`pnpm seed`; refuses to run in production).
 - Zod schemas in `packages/shared` for every content DTO.
 - **Exit:** every content type can be authored and published in admin; tests confirm revalidation fires and `/api/cms/questions` never returns protected fields to non-admins.
+- **Done:** all of the above, verified by unit and integration tests. Not yet exercised by hand: authoring in the admin UI and a real Vercel Blob upload.
 
 ### Phase 3 — Public Web App & Read API
 

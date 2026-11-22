@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
+/** Unit tests. They never touch a database. Integration tests: vitest.int.config.ts. */
 export default defineConfig({
   resolve: {
     alias: {
@@ -13,6 +14,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/*.int.test.ts'],
     // Valid placeholder values so importing src/env.ts does not throw in unit tests.
     env: {
       DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:5432/medipedia_test',

@@ -3,7 +3,7 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 
 /** Files allowed to read process.env directly (AGENTS.md §10). */
-export const envFiles = ['**/src/env.ts']
+export const envFiles = ['**/src/env.ts', '**/vitest*.config.ts']
 
 /**
  * Project rules only, with no plugin registration. Use this on top of a config that already

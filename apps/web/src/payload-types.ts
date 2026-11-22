@@ -67,7 +67,17 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    lectures: Lecture;
+    flashcards: Flashcard;
+    questions: Question;
+    papers: Paper;
+    videos: Video;
+    media: Media;
+    domains: Domain;
+    topics: Topic;
     users: User;
+    'answer-events': AnswerEvent;
+    'refresh-tokens': RefreshToken;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -75,7 +85,17 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    lectures: LecturesSelect<false> | LecturesSelect<true>;
+    flashcards: FlashcardsSelect<false> | FlashcardsSelect<true>;
+    questions: QuestionsSelect<false> | QuestionsSelect<true>;
+    papers: PapersSelect<false> | PapersSelect<true>;
+    videos: VideosSelect<false> | VideosSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    domains: DomainsSelect<false> | DomainsSelect<true>;
+    topics: TopicsSelect<false> | TopicsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    'answer-events': AnswerEventsSelect<false> | AnswerEventsSelect<true>;
+    'refresh-tokens': RefreshTokensSelect<false> | RefreshTokensSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -117,6 +137,403 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lectures".
+ */
+export interface Lecture {
+  id: string;
+  title: string;
+  /**
+   * Public URL identifier. Generated from "title" when left empty.
+   */
+  slug: string;
+  summary?: string | null;
+  coverImage?: (string | null) | Media;
+  domains: (string | Domain)[];
+  body: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  citations?:
+    | {
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Set automatically on first publish.
+   */
+  publishedAt?: string | null;
+  /**
+   * Update when the content is re-checked against current guidance.
+   */
+  lastReviewedAt?: string | null;
+  /**
+   * Reserved for future gating. Everything is free in v1.
+   */
+  accessTier: 'free' | 'premium';
+  /**
+   * Defaults to the title. Around 60 characters reads best in search.
+   */
+  metaTitle?: string | null;
+  /**
+   * Around 150 characters reads best in search.
+   */
+  metaDescription?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: string;
+  /**
+   * Describe the image for screen readers and search engines.
+   */
+  alt: string;
+  caption?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "domains".
+ */
+export interface Domain {
+  id: string;
+  name: string;
+  /**
+   * Public URL identifier. Generated from "name" when left empty.
+   */
+  slug: string;
+  description?: string | null;
+  /**
+   * Optional. Domains nest one level deep: a sub-domain cannot have its own sub-domains.
+   */
+  parent?: (string | null) | Domain;
+  /**
+   * Lower numbers are listed first.
+   */
+  order: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "flashcards".
+ */
+export interface Flashcard {
+  id: string;
+  front: string;
+  frontImage?: (string | null) | Media;
+  back: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  topic: string | Topic;
+  /**
+   * Set automatically from the topic.
+   */
+  domain?: (string | null) | Domain;
+  tags?: string[] | null;
+  /**
+   * Reserved for future gating. Everything is free in v1.
+   */
+  accessTier: 'free' | 'premium';
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics".
+ */
+export interface Topic {
+  id: string;
+  name: string;
+  /**
+   * Public URL identifier. Generated from "name" when left empty.
+   */
+  slug: string;
+  domain: string | Domain;
+  /**
+   * Lower numbers are listed first.
+   */
+  order: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "questions".
+ */
+export interface Question {
+  id: string;
+  vignette: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  stem: string;
+  /**
+   * Two to six choices. Mark exactly one as correct. Labels A-F are automatic.
+   */
+  choices?:
+    | {
+        /**
+         * Assigned automatically by position.
+         */
+        label?: string | null;
+        text: string;
+        isCorrect?: boolean | null;
+        /**
+         * Why this choice is right or wrong.
+         */
+        explanation: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  overallExplanation: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  topic: string | Topic;
+  /**
+   * Set automatically from the topic.
+   */
+  domain?: (string | null) | Domain;
+  difficulty: 'easy' | 'medium' | 'hard';
+  citations?:
+    | {
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Reserved for future gating. Everything is free in v1.
+   */
+  accessTier: 'free' | 'premium';
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "papers".
+ */
+export interface Paper {
+  id: string;
+  title: string;
+  /**
+   * Public URL identifier. Generated from "title" when left empty.
+   */
+  slug: string;
+  authors: string[];
+  journal?: string | null;
+  year?: number | null;
+  /**
+   * e.g. 10.1016/S0140-6736(94)90566-5. A doi.org link is converted.
+   */
+  doi?: string | null;
+  pubmedUrl?: string | null;
+  /**
+   * Entered by hand. Not synced from any external service.
+   */
+  citationCount?: number | null;
+  /**
+   * The lead author's h-index, entered by hand.
+   */
+  leadAuthorHIndex?: number | null;
+  /**
+   * 1 (low) to 5 (high).
+   */
+  clinicalRelevance?: number | null;
+  abstract: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  sparkNotes: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  domain: string | Domain;
+  /**
+   * Reserved for future gating. Everything is free in v1.
+   */
+  accessTier: 'free' | 'premium';
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "videos".
+ */
+export interface Video {
+  id: string;
+  title: string;
+  /**
+   * Public URL identifier. Generated from "title" when left empty.
+   */
+  slug: string;
+  /**
+   * A YouTube or Vimeo link. It is converted to the canonical embed URL on save.
+   */
+  embedUrl: string;
+  /**
+   * Derived from the URL.
+   */
+  provider?: ('youtube' | 'vimeo' | 'other') | null;
+  /**
+   * Derived from the URL. Used to build the provider's thumbnail.
+   */
+  providerVideoId?: string | null;
+  description: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  /**
+   * Optional. YouTube's own thumbnail is used when empty.
+   */
+  thumbnail?: (string | null) | Media;
+  domain: string | Domain;
+  durationSeconds?: number | null;
+  /**
+   * When the video was last vetted.
+   */
+  reviewedAt?: string | null;
+  reviewedBy?: (string | null) | User;
+  /**
+   * Reserved for future gating. Everything is free in v1.
+   */
+  accessTier: 'free' | 'premium';
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -147,6 +564,45 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "answer-events".
+ */
+export interface AnswerEvent {
+  id: string;
+  user: string | User;
+  question: string | Question;
+  selectedLabel: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+  isCorrect: boolean;
+  /**
+   * True for the user's first answer to this question. Accuracy uses these.
+   */
+  isFirstAttempt: boolean;
+  domain?: (string | null) | Domain;
+  topic?: (string | null) | Topic;
+  answeredAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "refresh-tokens".
+ */
+export interface RefreshToken {
+  id: string;
+  user: string | User;
+  tokenHash: string;
+  audience: 'web' | 'mobile';
+  /**
+   * Shared by every rotation of one login, for reuse detection.
+   */
+  familyId: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  deviceLabel?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -168,10 +624,51 @@ export interface PayloadKv {
  */
 export interface PayloadLockedDocument {
   id: string;
-  document?: {
-    relationTo: 'users';
-    value: string | User;
-  } | null;
+  document?:
+    | ({
+        relationTo: 'lectures';
+        value: string | Lecture;
+      } | null)
+    | ({
+        relationTo: 'flashcards';
+        value: string | Flashcard;
+      } | null)
+    | ({
+        relationTo: 'questions';
+        value: string | Question;
+      } | null)
+    | ({
+        relationTo: 'papers';
+        value: string | Paper;
+      } | null)
+    | ({
+        relationTo: 'videos';
+        value: string | Video;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: string | Media;
+      } | null)
+    | ({
+        relationTo: 'domains';
+        value: string | Domain;
+      } | null)
+    | ({
+        relationTo: 'topics';
+        value: string | Topic;
+      } | null)
+    | ({
+        relationTo: 'users';
+        value: string | User;
+      } | null)
+    | ({
+        relationTo: 'answer-events';
+        value: string | AnswerEvent;
+      } | null)
+    | ({
+        relationTo: 'refresh-tokens';
+        value: string | RefreshToken;
+      } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
@@ -216,6 +713,193 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lectures_select".
+ */
+export interface LecturesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  summary?: T;
+  coverImage?: T;
+  domains?: T;
+  body?: T;
+  citations?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  publishedAt?: T;
+  lastReviewedAt?: T;
+  accessTier?: T;
+  metaTitle?: T;
+  metaDescription?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "flashcards_select".
+ */
+export interface FlashcardsSelect<T extends boolean = true> {
+  front?: T;
+  frontImage?: T;
+  back?: T;
+  topic?: T;
+  domain?: T;
+  tags?: T;
+  accessTier?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "questions_select".
+ */
+export interface QuestionsSelect<T extends boolean = true> {
+  vignette?: T;
+  stem?: T;
+  choices?:
+    | T
+    | {
+        label?: T;
+        text?: T;
+        isCorrect?: T;
+        explanation?: T;
+        id?: T;
+      };
+  overallExplanation?: T;
+  topic?: T;
+  domain?: T;
+  difficulty?: T;
+  citations?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  accessTier?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "papers_select".
+ */
+export interface PapersSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  authors?: T;
+  journal?: T;
+  year?: T;
+  doi?: T;
+  pubmedUrl?: T;
+  citationCount?: T;
+  leadAuthorHIndex?: T;
+  clinicalRelevance?: T;
+  abstract?: T;
+  sparkNotes?: T;
+  domain?: T;
+  accessTier?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "videos_select".
+ */
+export interface VideosSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  embedUrl?: T;
+  provider?: T;
+  providerVideoId?: T;
+  description?: T;
+  thumbnail?: T;
+  domain?: T;
+  durationSeconds?: T;
+  reviewedAt?: T;
+  reviewedBy?: T;
+  accessTier?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  caption?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "domains_select".
+ */
+export interface DomainsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  parent?: T;
+  order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "topics_select".
+ */
+export interface TopicsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  domain?: T;
+  order?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
@@ -240,6 +924,37 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "answer-events_select".
+ */
+export interface AnswerEventsSelect<T extends boolean = true> {
+  user?: T;
+  question?: T;
+  selectedLabel?: T;
+  isCorrect?: T;
+  isFirstAttempt?: T;
+  domain?: T;
+  topic?: T;
+  answeredAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "refresh-tokens_select".
+ */
+export interface RefreshTokensSelect<T extends boolean = true> {
+  user?: T;
+  tokenHash?: T;
+  audience?: T;
+  familyId?: T;
+  expiresAt?: T;
+  revokedAt?: T;
+  deviceLabel?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

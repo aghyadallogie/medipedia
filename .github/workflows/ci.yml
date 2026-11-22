@@ -12,7 +12,20 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Placeholder values so env.ts validation passes; CI does not connect to a database yet.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medipedia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/medipedia
       DATABASE_URL_UNPOOLED: postgres://postgres:postgres@127.0.0.1:5432/medipedia
@@ -37,5 +50,11 @@ jobs:
       - run: pnpm lint
 
       - run: pnpm test
+
+      # Proves the committed migrations build the whole schema from an empty database.
+      - run: pnpm --filter @medipedia/web migrate
+
+      # Integration tests create and drop their own schema in the same database.
+      - run: pnpm test:int
 
       - run: pnpm build

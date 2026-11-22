@@ -1,4 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./base.json"
+  "extends": "./base.json",
+  "compilerOptions": {
+    // DOM lib is for global types such as URL that exist in Node, browsers and React Native.
+    "lib": ["ES2022", "DOM"]
+  }
 }

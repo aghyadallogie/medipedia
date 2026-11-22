@@ -11,6 +11,11 @@ const monorepoRoot = path.resolve(dirname, '../..')
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@medipedia/shared'],
+  images: {
+    // Local-disk media in development. In production, Vercel Blob URLs are absolute.
+    localPatterns: [{ pathname: '/api/cms/media/file/**' }],
+    remotePatterns: [{ protocol: 'https', hostname: '*.public.blob.vercel-storage.com' }],
+  },
   outputFileTracingRoot: monorepoRoot,
   turbopack: {
     root: monorepoRoot,

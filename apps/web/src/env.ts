@@ -26,7 +26,10 @@ const ServerEnvSchema = z
     /** Set by the `migrate*` scripts so migrations use the direct (unpooled) connection. */
     PAYLOAD_MIGRATING: z.stringbool().default(false),
 
-    // Phase 2 (media uploads)
+    /** Set by Vercel. Absent locally and in CI. */
+    VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
+
+    // Phase 2 (media uploads). Optional locally, where uploads fall back to disk.
     BLOB_READ_WRITE_TOKEN: optionalString(z.string()),
 
     // Phase 4 (learner auth, email)
@@ -44,6 +47,17 @@ const ServerEnvSchema = z
     message: 'JWT_SECRET must differ from PAYLOAD_SECRET (AGENTS.md §5)',
     path: ['JWT_SECRET'],
   })
+  // Vercel's filesystem is read-only and ephemeral, so uploads there must go to Blob.
+  .refine(
+    (env) =>
+      env.VERCEL_ENV === undefined ||
+      env.VERCEL_ENV === 'development' ||
+      env.BLOB_READ_WRITE_TOKEN !== undefined,
+    {
+      message: 'BLOB_READ_WRITE_TOKEN is required on Vercel preview and production deployments',
+      path: ['BLOB_READ_WRITE_TOKEN'],
+    },
+  )
 
 const PublicEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.url(),

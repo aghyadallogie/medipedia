@@ -1,10 +1,12 @@
 import { AUTH_PROVIDERS, USER_ROLES } from '@medipedia/shared'
-import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import type {
+  CollectionBeforeChangeHook,
+  CollectionBeforeDeleteHook,
+  CollectionConfig,
+} from 'payload'
 
+import { toOptions } from '@/fields/shared'
 import { isAdmin, isAdminFieldLevel, isAdminOrSelf, isAdminUser } from '@/server/access'
-
-const toOptions = (values: readonly string[]) =>
-  values.map((value) => ({ label: value[0]?.toUpperCase() + value.slice(1), value }))
 
 /**
  * The first account ever created (via /admin's "create first user" screen) becomes an admin.
@@ -19,12 +21,28 @@ const promoteFirstUserToAdmin: CollectionBeforeChangeHook = async ({ data, opera
   return data
 }
 
+/**
+ * Deleting an account deletes its answers and refresh tokens (App Store account-deletion rule).
+ * Runs before the delete: afterwards the foreign keys have already been nulled.
+ */
+const deleteUserData: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  for (const collection of ['answer-events', 'refresh-tokens'] as const) {
+    await req.payload.delete({
+      collection,
+      where: { user: { equals: id } },
+      req,
+      overrideAccess: true,
+    })
+  }
+}
+
 export const Users: CollectionConfig = {
   slug: 'users',
   // Payload native auth, used by the admin panel. Learner tokens are our own layer (AGENTS.md §5, Phase 4).
   auth: true,
   admin: {
     useAsTitle: 'email',
+    group: 'System',
     defaultColumns: ['email', 'name', 'role', 'provider', 'createdAt'],
   },
   access: {
@@ -37,6 +55,7 @@ export const Users: CollectionConfig = {
   },
   hooks: {
     beforeChange: [promoteFirstUserToAdmin],
+    beforeDelete: [deleteUserData],
   },
   fields: [
     {
