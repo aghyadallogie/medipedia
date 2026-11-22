@@ -1,0 +1,19 @@
+{
+  "name": "@medipedia/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./tsconfig/library.json": "./tsconfig/library.json",
+    "./eslint/base": "./eslint/base.js"
+  },
+  "dependencies": {
+    "@eslint/js": "9.39.5",
+    "typescript-eslint": "8.73.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  }
+}

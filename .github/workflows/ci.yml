@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Placeholder values so env.ts validation passes; CI does not connect to a database yet.
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/medipedia
+      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@127.0.0.1:5432/medipedia
+      PAYLOAD_SECRET: ci-payload-secret-not-used-in-production-000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm format:check
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      - run: pnpm build
