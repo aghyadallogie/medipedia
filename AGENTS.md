@@ -513,6 +513,8 @@ Each phase is shippable and tested before moving on.
 - Flashcard study UI on web using local IndexedDB state + in-house SM-2.
 - Reveal endpoint (`/api/v1/flashcards/:id/back`).
 - "Saved in this browser" notice. No server sync.
+- **Done:** all of the above. Pages: `/flashcards` (topics that have published cards, grouped by domain, with card counts) and `/flashcards/[topic]` (study session). The study page is a client component: it loads every card of the topic through `packages/api-client` (web shape, so `back` is already in the list and the reveal endpoint is not called on web; it stays for mobile), reads review state from IndexedDB and runs the session. Code lives in `apps/web/src/lib/flashcards/` (`sm2.ts`, `session.ts`, `store.ts`), covered by unit tests; the integration suite covers the new topics query and the sitemap. Verified by walking a session in the browser (reveal, grade, re-queue, finish, reload, reset, phone width).
+- **Decisions:** due dates are local calendar days (`"YYYY-MM-DD"`), not timestamps. The four buttons map to SM-2 quality 1, 3, 4 and 5 (Again, Hard, Good, Easy). A missed card restarts at one day with its ease unchanged (SM-2) and comes back after four other cards in the same session. At most 20 new cards start per session; due reviews are never limited. If IndexedDB is unavailable the session runs on an in-memory store and says progress will be lost. Not built: study-ahead of cards that are not due, per-domain study pages, card search.
 
 ### Phase 7 — Hardening
 

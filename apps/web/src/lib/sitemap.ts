@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next'
 import type { SitemapEntries } from '@/server/public-queries'
 import { absoluteUrl } from '@/server/site'
 
-const STATIC_PATHS = ['/', '/lectures', '/papers', '/videos', '/domains'] as const
+const STATIC_PATHS = ['/', '/lectures', '/papers', '/videos', '/flashcards', '/domains'] as const
 
 /** Every public URL: the index pages plus one entry per published document. */
 export function buildSitemap(entries: SitemapEntries, now: Date): MetadataRoute.Sitemap {
@@ -19,5 +19,6 @@ export function buildSitemap(entries: SitemapEntries, now: Date): MetadataRoute.
     ...documents('/lectures', entries.lectures),
     ...documents('/papers', entries.papers),
     ...documents('/videos', entries.videos),
+    ...documents('/flashcards', entries.flashcardTopics),
   ]
 }
