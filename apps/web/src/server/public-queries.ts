@@ -429,6 +429,43 @@ export async function getFlashcardBack(
   return IdSchema.safeParse(id).success ? flashcardBackQuery(id) : null
 }
 
+/** A topic that has published flashcards, with how many. */
+export type FlashcardTopic = TopicDto & { cardCount: number }
+
+const flashcardTopicsQuery = cachedQuery(
+  'flashcards:topics',
+  async (): Promise<FlashcardTopic[]> => {
+    const payload = await getClient()
+    // Only the topic id of each card is read, so this stays cheap at thousands of cards.
+    const { docs } = await payload.find({
+      collection: 'flashcards',
+      select: { topic: true },
+      pagination: false,
+      depth: 0,
+      ...PUBLIC,
+    })
+    const counts = new Map<string, number>()
+    for (const doc of docs) {
+      const topicId = typeof doc.topic === 'string' ? doc.topic : doc.topic.id
+      counts.set(topicId, (counts.get(topicId) ?? 0) + 1)
+    }
+    const topics = await topicsQuery(null)
+    return topics
+      .filter((topic) => counts.has(topic.id))
+      .map((topic) => ({ ...topic, cardCount: counts.get(topic.id) ?? 0 }))
+  },
+  () => [CONTENT_TAG, 'flashcards', 'topics', 'domains'],
+)
+
+/** Topics with at least one published flashcard, in display order, for the flashcards index. */
+export const listFlashcardTopics = (): Promise<FlashcardTopic[]> => flashcardTopicsQuery()
+
+/** One topic that has published flashcards, or null (unknown slug, or no cards yet). */
+export async function getFlashcardTopic(slug: string): Promise<FlashcardTopic | null> {
+  if (!SlugSchema.safeParse(slug).success) return null
+  return (await flashcardTopicsQuery()).find((topic) => topic.slug === slug) ?? null
+}
+
 // ---------- question statistics ----------
 
 const questionStatsQuery = cachedQuery(
@@ -502,6 +539,8 @@ export type SitemapEntries = {
   lectures: SitemapEntry[]
   papers: SitemapEntry[]
   videos: SitemapEntry[]
+  /** Topics that have flashcards, each with its own study page. */
+  flashcardTopics: SitemapEntry[]
 }
 
 async function entries(collection: 'domains' | 'lectures' | 'papers' | 'videos') {
@@ -519,15 +558,18 @@ async function entries(collection: 'domains' | 'lectures' | 'papers' | 'videos')
 const sitemapQuery = cachedQuery(
   'sitemap',
   async (): Promise<SitemapEntries> => {
-    const [domains, lectures, papers, videos] = await Promise.all([
+    const [domains, lectures, papers, videos, flashcardTopics] = await Promise.all([
       entries('domains'),
       entries('lectures'),
       entries('papers'),
       entries('videos'),
+      flashcardTopicsQuery().then((topics) =>
+        topics.map(({ slug, updatedAt }) => ({ slug, updatedAt })),
+      ),
     ])
-    return { domains, lectures, papers, videos }
+    return { domains, lectures, papers, videos, flashcardTopics }
   },
-  () => [CONTENT_TAG, 'domains', 'lectures', 'papers', 'videos'],
+  () => [CONTENT_TAG, 'domains', 'lectures', 'papers', 'videos', 'flashcards', 'topics'],
 )
 
 export const getSitemapEntries = (): Promise<SitemapEntries> => sitemapQuery()

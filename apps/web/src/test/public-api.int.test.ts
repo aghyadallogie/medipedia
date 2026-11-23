@@ -53,7 +53,13 @@ import { GET as videoGET } from '@/app/api/v1/videos/[slug]/route'
 import { GET as videosGET } from '@/app/api/v1/videos/route'
 import { CACHE_CONTROL } from '@/server/http'
 import { paragraphsToLexical } from '@/server/lexical'
-import { getLecture, getSitemapEntries, listLectures } from '@/server/public-queries'
+import {
+  getFlashcardTopic,
+  getLecture,
+  getSitemapEntries,
+  listFlashcardTopics,
+  listLectures,
+} from '@/server/public-queries'
 import { seedSampleContent } from '@/scripts/seed-content'
 
 import { creator, PASSWORD, startHarness, type Harness } from './harness'
@@ -447,6 +453,31 @@ describe('flashcards', () => {
   })
 })
 
+describe('flashcard topics', () => {
+  it('lists only topics with published cards, counting published cards only', async () => {
+    const topics = await listFlashcardTopics()
+    expect(topics.map((topic) => topic.slug).sort()).toEqual([
+      'antihypertensives',
+      'cardiac-emergencies',
+      'endocrine-drugs',
+      'hemodynamics-and-thrombosis',
+      'ischemic-heart-disease',
+    ])
+    // Ischemic heart disease also has a draft-only card, which must not be counted.
+    expect(topics.every((topic) => topic.cardCount === 1)).toBe(true)
+    expect(topics.find((topic) => topic.slug === 'ischemic-heart-disease')?.domain.slug).toBe(
+      'cardiology',
+    )
+  })
+
+  it('finds one topic by slug, and nothing for a topic without cards or a bad slug', async () => {
+    expect((await getFlashcardTopic('cardiac-emergencies'))?.name).toBe('Cardiac emergencies')
+    expect(await getFlashcardTopic('hematopathology')).toBeNull()
+    expect(await getFlashcardTopic('no-such-topic')).toBeNull()
+    expect(await getFlashcardTopic('Not A Slug!')).toBeNull()
+  })
+})
+
 describe('question statistics', () => {
   it('counts only published questions, per domain and topic', async () => {
     const { data } = QuestionStatsResponseSchema.parse((await json('/api/v1/questions/stats')).body)
@@ -524,6 +555,7 @@ describe('sitemap data', () => {
     expect(entries.domains).toHaveLength(4)
     expect(entries.papers).toHaveLength(2)
     expect(entries.videos).toHaveLength(2)
+    expect(entries.flashcardTopics).toHaveLength(5)
     const text = JSON.stringify(entries)
     expect(text).not.toContain('draft-only')
     for (const entry of entries.lectures) expect(Date.parse(entry.updatedAt)).not.toBeNaN()

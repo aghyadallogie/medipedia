@@ -8,6 +8,7 @@ import { SITE_NAME } from '@/lib/seo'
 
 const NAV = [
   { href: '/lectures', label: 'Lectures' },
+  { href: '/flashcards', label: 'Flashcards' },
   { href: '/papers', label: 'Papers' },
   { href: '/videos', label: 'Videos' },
   { href: '/domains', label: 'Domains' },

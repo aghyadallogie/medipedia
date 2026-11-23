@@ -209,6 +209,7 @@ describe('buildSitemap', () => {
     lectures: [{ slug: 'a b', updatedAt: '2026-02-01T00:00:00.000Z' }],
     papers: [{ slug: 'p', updatedAt: '2026-03-01T00:00:00.000Z' }],
     videos: [],
+    flashcardTopics: [{ slug: 'acs', updatedAt: '2026-04-01T00:00:00.000Z' }],
   }
 
   it('lists the index pages and one entry per document with its real modified date', () => {
@@ -218,11 +219,13 @@ describe('buildSitemap', () => {
       'http://localhost:3000/lectures',
       'http://localhost:3000/papers',
       'http://localhost:3000/videos',
+      'http://localhost:3000/flashcards',
       'http://localhost:3000/domains',
       'http://localhost:3000/domains/cardiology',
       'http://localhost:3000/lectures/a%20b',
       'http://localhost:3000/papers/p',
+      'http://localhost:3000/flashcards/acs',
     ])
-    expect(urls.at(-1)?.lastModified).toEqual(new Date('2026-03-01T00:00:00.000Z'))
+    expect(urls.at(-1)?.lastModified).toEqual(new Date('2026-04-01T00:00:00.000Z'))
   })
 })
