@@ -1,6 +1,9 @@
+import Image from 'next/image'
+import Link from 'next/link'
 import type { ComponentProps, ReactNode } from 'react'
 
 import { pressable, sheen } from '@/components/motion'
+import { SITE_NAME } from '@/lib/seo'
 
 const inputClass =
   'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base shadow-sm transition-colors duration-150 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900'
@@ -108,7 +111,30 @@ export function Message({
   )
 }
 
-/** A centred column for the auth pages. */
+const PERKS = [
+  'Lectures and papers with sources you can check',
+  'Practice questions with an explanation for every choice',
+  'Your accuracy by domain, so you know where to focus',
+] as const
+
+function Logo({ size, className = '' }: { size: number; className?: string }) {
+  return (
+    <Image
+      src="/logo.png"
+      alt=""
+      width={size}
+      height={size}
+      priority
+      className={`rounded-[22%] ${className}`}
+    />
+  )
+}
+
+/**
+ * The auth pages: one card, split in two on wider screens. The left side is the brand (logo,
+ * a line about what the site is, three reasons to sign up); the right side holds the form. On
+ * phones the brand side collapses to the logo above the title.
+ */
 export function AuthCard({
   title,
   description,
@@ -119,12 +145,71 @@ export function AuthCard({
   children: ReactNode
 }) {
   return (
-    <div className="mx-auto max-w-md space-y-6 py-8 sm:py-14">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-        {description ? <p className="text-slate-600 dark:text-slate-300">{description}</p> : null}
+    <div className="mx-auto max-w-4xl py-6 sm:py-12">
+      <div className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-xl shadow-brand-950/10 backdrop-blur md:grid-cols-[5fr_6fr] dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-black/40">
+        <aside
+          className="relative hidden flex-col justify-between gap-10 overflow-hidden p-8 text-white md:flex lg:p-10"
+          style={{
+            backgroundColor: '#0a1b45',
+            backgroundImage:
+              'radial-gradient(28rem 20rem at 0% 0%, rgb(52 105 220 / 0.55), transparent 70%), radial-gradient(20rem 16rem at 100% 100%, rgb(232 169 42 / 0.16), transparent 70%), linear-gradient(160deg, #11307a, #0a1b45 60%, #06102e)',
+          }}
+        >
+          {/* A fine dot grid, as on the page behind. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-60"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle, rgb(255 255 255 / 0.14) 1px, transparent 1.3px)',
+              backgroundSize: '24px 24px',
+              maskImage: 'linear-gradient(to bottom, black, transparent 80%)',
+            }}
+          />
+          <div className="relative space-y-6">
+            <Link href="/" className="inline-flex items-center gap-3 text-lg font-semibold">
+              <Logo size={48} className="shadow-lg shadow-black/30" />
+              {SITE_NAME}
+            </Link>
+            <p className="text-2xl leading-snug font-semibold tracking-tight text-balance lg:text-[1.7rem]">
+              Learn medicine from sources you can check.
+            </p>
+          </div>
+          <ul className="relative space-y-3.5 text-sm text-blue-100/90">
+            {PERKS.map((perk) => (
+              <li key={perk} className="flex items-start gap-3">
+                <svg
+                  viewBox="0 0 20 20"
+                  className="mt-0.5 size-5 shrink-0 text-accent-400"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="10" cy="10" r="8" opacity="0.35" />
+                  <path d="m6.5 10.2 2.4 2.4 4.6-4.9" />
+                </svg>
+                {perk}
+              </li>
+            ))}
+          </ul>
+        </aside>
+
+        <div className="space-y-6 p-6 sm:p-8 lg:p-10">
+          <div className="space-y-3">
+            <Link href="/" aria-label={`${SITE_NAME} home`} className="inline-block md:hidden">
+              <Logo size={44} className="shadow-md shadow-brand-950/20" />
+            </Link>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+            {description ? (
+              <p className="text-slate-600 dark:text-slate-300">{description}</p>
+            ) : null}
+          </div>
+          {children}
+        </div>
       </div>
-      {children}
     </div>
   )
 }

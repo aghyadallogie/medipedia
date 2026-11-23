@@ -66,7 +66,7 @@ medipedia/
 │  └─ web/                          Next.js + Payload (one Vercel project)
 │     └─ src/
 │        ├─ app/
-│        │  ├─ (frontend)/          public site, QBank UI, flashcards UI
+│        │  ├─ (frontend)/          public site (site), sign-in/sign-up without navbar (auth)
 │        │  ├─ (payload)/admin/     Payload admin panel
 │        │  ├─ (payload)/api/cms/   Payload REST (moved from /api, see §6)
 │        │  └─ api/v1/              App API — the contract for web + mobile

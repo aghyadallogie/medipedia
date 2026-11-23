@@ -4,7 +4,7 @@
  * scales is added there only when the system allows motion.
  */
 
-/** A card or tile that is one big link: a teal line draws in, a halo glows, it lifts a little. */
+/** A card or tile that is one big link: a blue line draws in, a halo glows, it lifts a little. */
 export const liftOnHover = 'accent-card'
 
 /** A button or button-like link: tiny lift on hover, squeezes on tap. */
