@@ -39,6 +39,14 @@ export const RefreshTokens: CollectionConfig = {
     },
     { name: 'expiresAt', type: 'date', required: true, index: true },
     { name: 'revokedAt', type: 'date' },
+    {
+      name: 'rotatedAt',
+      type: 'date',
+      admin: {
+        description:
+          'Set when the token was replaced by its successor, as opposed to revoked by a sign-out.',
+      },
+    },
     { name: 'deviceLabel', type: 'text' },
   ],
 }

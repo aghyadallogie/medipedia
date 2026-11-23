@@ -1,4 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { resendAdapter } from '@payloadcms/email-resend'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
 import path from 'path'
@@ -18,6 +19,7 @@ import { Topics } from './collections/Topics'
 import { Users } from './collections/Users'
 import { Videos } from './collections/Videos'
 import { env } from './env'
+import { EMAIL_FROM_NAME } from './server/auth/emails'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -53,6 +55,15 @@ export function createConfig({ schemaName, push = false }: ConfigOptions = {}) {
       RefreshTokens,
     ],
     editor: lexicalEditor(),
+    // Without Resend credentials (local development) Payload prints emails to the console.
+    email:
+      env.RESEND_API_KEY !== undefined && env.EMAIL_FROM !== undefined
+        ? resendAdapter({
+            apiKey: env.RESEND_API_KEY,
+            defaultFromAddress: env.EMAIL_FROM,
+            defaultFromName: EMAIL_FROM_NAME,
+          })
+        : undefined,
     secret: env.PAYLOAD_SECRET,
     db: postgresAdapter({
       // UUID primary keys. Decided before the first migration; do not change (AGENTS.md §4).

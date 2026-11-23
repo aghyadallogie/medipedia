@@ -5,20 +5,56 @@ import type {
   CollectionConfig,
 } from 'payload'
 
+import { env } from '@/env'
 import { toOptions } from '@/fields/shared'
 import { isAdmin, isAdminFieldLevel, isAdminOrSelf, isAdminUser } from '@/server/access'
+import {
+  resetPasswordHtml,
+  resetPasswordSubject,
+  verifyEmailHtml,
+  verifyEmailSubject,
+} from '@/server/auth/emails'
+import { createAccessTokenStrategy } from '@/server/auth/strategy'
 
 /**
  * The first account ever created (via /admin's "create first user" screen) becomes an admin.
- * Every later account defaults to `learner`.
+ * Every later account defaults to "learner".
+ *
+ * Accounts made by the first-user screen or by a signed-in admin are verified from the start:
+ * nobody needs to prove they own an address that an admin typed in. Accounts that sign up
+ * through the public API stay unverified until they use the emailed link.
  */
-const promoteFirstUserToAdmin: CollectionBeforeChangeHook = async ({ data, operation, req }) => {
+const bootstrapAccount: CollectionBeforeChangeHook = async ({ data, operation, req }) => {
   if (operation !== 'create') return data
   const { totalDocs } = await req.payload.count({ collection: 'users', req })
   if (totalDocs === 0) {
-    return { ...data, role: 'admin' }
+    return { ...data, role: 'admin', _verified: true }
+  }
+  if (isAdminUser(req.user)) {
+    return { ...data, _verified: true }
   }
   return data
+}
+
+/**
+ * A signed-in non-admin updating an account through Payload's own REST API must not change who
+ * the account belongs to. Without this, a learner could point their verified account at someone
+ * else's email address and later be linked to that person's Google sign-in.
+ *
+ * Server code (our own endpoints) runs without `req.user`, so it is unaffected.
+ */
+const protectIdentityFields: CollectionBeforeChangeHook = ({
+  data,
+  operation,
+  originalDoc,
+  req,
+}) => {
+  if (operation !== 'update' || !req.user || isAdminUser(req.user)) return data
+  // Put the stored values back rather than dropping the keys: Payload validates `email` as
+  // required, so a missing value would fail the whole update.
+  const rest = { ...data }
+  delete rest._verificationToken
+  return { ...rest, email: originalDoc?.email, _verified: originalDoc?._verified }
 }
 
 /**
@@ -38,8 +74,26 @@ const deleteUserData: CollectionBeforeDeleteHook = async ({ id, req }) => {
 
 export const Users: CollectionConfig = {
   slug: 'users',
-  // Payload native auth, used by the admin panel. Learner tokens are our own layer (AGENTS.md §5, Phase 4).
-  auth: true,
+  // Payload native auth powers the admin panel and checks passwords and verification. Learner
+  // sessions are our own token layer (AGENTS.md §5), recognised through the strategy below.
+  auth: {
+    // Payload's own tokens are only used by the admin panel. Keep them as short as ours.
+    tokenExpiration: 15 * 60,
+    // Brute-force protection: five wrong passwords lock the account for ten minutes.
+    maxLoginAttempts: 5,
+    lockTime: 10 * 60 * 1000,
+    verify: {
+      generateEmailSubject: () => verifyEmailSubject(),
+      generateEmailHTML: ({ token, user }) => verifyEmailHtml({ token, user }),
+    },
+    forgotPassword: {
+      expiration: 60 * 60 * 1000,
+      generateEmailSubject: () => resetPasswordSubject(),
+      generateEmailHTML: (args) =>
+        resetPasswordHtml({ token: args?.token ?? '', user: args?.user ?? {} }),
+    },
+    strategies: [createAccessTokenStrategy(() => env.JWT_SECRET)],
+  },
   admin: {
     useAsTitle: 'email',
     group: 'System',
@@ -54,7 +108,7 @@ export const Users: CollectionConfig = {
     delete: isAdmin,
   },
   hooks: {
-    beforeChange: [promoteFirstUserToAdmin],
+    beforeChange: [bootstrapAccount, protectIdentityFields],
     beforeDelete: [deleteUserData],
   },
   fields: [

@@ -96,11 +96,20 @@ beforeAll(async () => {
   })
   learner = await create({
     collection: 'users',
-    data: { email: 'learner@example.com', password: PASSWORD, name: 'Learner' },
+    // Signing in needs a confirmed address (Phase 4).
+    data: { email: 'learner@example.com', password: PASSWORD, name: 'Learner', _verified: true },
+    disableVerificationEmail: true,
   })
   learner2 = await create({
     collection: 'users',
-    data: { email: 'learner2@example.com', password: PASSWORD, name: 'Learner Two' },
+    // Signing in needs a confirmed address (Phase 4).
+    data: {
+      email: 'learner2@example.com',
+      password: PASSWORD,
+      name: 'Learner Two',
+      _verified: true,
+    },
+    disableVerificationEmail: true,
   })
 
   cardiology = await createDomain('Cardiology')

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
+import { AuthNav } from '@/components/auth/auth-nav'
 import { MobileNav } from '@/components/mobile-nav'
 import { SITE_NAME } from '@/lib/seo'
 
@@ -43,7 +44,10 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <MobileNav items={NAV} />
+        <div className="flex items-center gap-1">
+          <AuthNav />
+          <MobileNav items={NAV} />
+        </div>
       </div>
     </header>
   )
