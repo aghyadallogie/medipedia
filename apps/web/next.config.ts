@@ -10,7 +10,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 const monorepoRoot = path.resolve(dirname, '../..')
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@medipedia/shared'],
+  transpilePackages: ['@medipedia/shared', '@medipedia/api-client'],
   images: {
     // Local-disk media in development. In production, Vercel Blob URLs are absolute.
     localPatterns: [{ pathname: '/api/cms/media/file/**' }],

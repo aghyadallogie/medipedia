@@ -2,7 +2,7 @@ import { ApiErrorBodySchema } from '@medipedia/shared'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { ApiError, CACHE_CONTROL, errorResponse, handler, ok } from './http'
+import { ApiError, CACHE_CONTROL, errorResponse, handler, ok, okList } from './http'
 
 describe('ok', () => {
   it('wraps data and sets the cache policy', async () => {
@@ -10,6 +10,20 @@ describe('ok', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
     expect(await res.json()).toEqual({ data: { hello: 'world' } })
+  })
+})
+
+describe('okList', () => {
+  it('wraps items with the next cursor and sets the cache policy', async () => {
+    const res = okList([{ a: 1 }], 'next-cursor', { cache: 'public' })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(await res.json()).toEqual({ data: [{ a: 1 }], nextCursor: 'next-cursor' })
+  })
+
+  it('keeps nextCursor present and null on the last page', async () => {
+    const res = okList([], null, { cache: 'public' })
+    expect(await res.json()).toEqual({ data: [], nextCursor: null })
   })
 })
 

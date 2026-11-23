@@ -164,10 +164,13 @@ export const AnswerResultSchema = z.object({
 })
 export type AnswerResult = z.infer<typeof AnswerResultSchema>
 
-/** `GET /questions/stats`: the only public question data. */
+/** `GET /questions/stats`: the only public question data. Counts only, never content. */
 export const QuestionStatsSchema = z.object({
   total: z.number().int().nonnegative(),
   byDomain: z.array(DomainRefSchema.extend({ count: z.number().int().nonnegative() })),
+  byTopic: z.array(
+    TopicRefSchema.extend({ domainId: IdSchema, count: z.number().int().nonnegative() }),
+  ),
 })
 export type QuestionStats = z.infer<typeof QuestionStatsSchema>
 

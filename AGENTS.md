@@ -46,7 +46,7 @@ An education platform for medical/clinical learners combining:
 | Email           | Resend via `@payloadcms/email-resend` (verification, password reset)                                    |
 | Rate limiting   | Upstash Redis (`@upstash/ratelimit`, `@upstash/redis`) — Phase 7                                        |
 | Validation      | Zod                                                                                                     |
-| Caching         | Next.js Data Cache + tag revalidation on publish (Payload hooks)                                        |
+| Caching         | Next.js Data Cache (`unstable_cache`) + tag revalidation on publish (Payload hooks); ISR for pages      |
 | Styling         | Tailwind CSS v4                                                                                         |
 | Testing         | Vitest (`pg` is a dev dependency only, used by the integration-test harness)                            |
 | Lint/format     | ESLint + Prettier                                                                                       |
@@ -283,12 +283,14 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 
 - Base path: `/api/v1/*`.
 - All responses are JSON: `{ data: T }` or `{ error: { code, message, details? } }`.
-- Pagination: cursor-based for lists (`?cursor=...&limit=20`), max `limit=100`. Lists return `{ data: T[], nextCursor: string | null }`.
+- Pagination: cursor-based for lists (`?cursor=...&limit=20`), max `limit=100`. Lists return `{ data: T[], nextCursor: string | null }`. Cursors are opaque keyset cursors (the sort values of the last item plus its id), so pages stay correct while content changes; a malformed cursor, or one made for a different sort order, is a `400`. Domains and topics are small and bounded, so they return everything with `nextCursor: null`.
+- List sort orders: lectures and videos by `updatedAt` descending, papers by title, flashcards by `createdAt`, domains and topics by `order` then name. Every sort ends with `id` as a tiebreaker.
 - All request bodies and query params validated with **Zod schemas from `packages/shared`**. Never trust `req.body` shapes.
 - All handlers return typed responses (types derived from Zod schemas).
 - Errors: use the `ApiError` helper. HTTP codes: `400` validation, `401` unauth, `403` forbidden, `404` not found, `429` rate-limited, `500` server.
 - **Rich text** is returned as `{ html: string }` rendered on the server with Lexical's HTML converter. Raw Lexical JSON is not part of the contract.
-- **Mobile-specific shapes**: mobile clients pass `?client=mobile`; the API returns lighter payloads (e.g., flashcards omit `back` until revealed; lecture lists omit `body`). If a shape diverges meaningfully, prefer a dedicated endpoint (e.g., `/api/v1/mobile/flashcards`).
+- **Mobile-specific shapes**: mobile clients pass `?client=mobile`; the API returns lighter payloads. Today that means flashcard lists omit `back` (the web shape includes it); fetch it per card from `GET /flashcards/:id/back`. Lecture and paper lists never include bodies or abstracts for any client. If a shape diverges meaningfully, prefer a dedicated endpoint (e.g., `/api/v1/mobile/flashcards`). Returning lecture bodies "in chunks" is not built.
+- A slug or id that is malformed or unknown, or whose document is a draft, is a `404`, never a `400`.
 
 ### Endpoints (v1)
 
@@ -305,10 +307,12 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 
 **Principle: public content is cached at the edge aggressively; user-specific and login-gated data is never cached publicly.**
 
-- Use the caching APIs of the pinned Next.js version (on Next 16: `'use cache'` + `cacheTag`, and `revalidateTag` with its current signature). Check the signature when scaffolding; do not copy older examples.
-- **Public content reads** (`lectures`, `papers`, `videos`, `flashcards`, `domains`, `topics`, `questions/stats`) use the Data Cache with **tag-based invalidation**.
-  - Every fetch of a public resource sets tags like: `lecture:<slug>`, `lectures`, `domain:<slug>`, `content`.
+- **Decision (Phase 3): `unstable_cache`, not `'use cache'`.** Next 16.4's bundled docs keep `unstable_cache` as the supported cache for non-`fetch` data and say to keep using it for data that should survive deployments. `'use cache'` needs Cache Components, which means restructuring every page around Suspense and is untested next to Payload's admin in the same app; its entries also do not carry over between deployments. Revisit when Payload documents Cache Components support. `revalidateTag` takes a profile in Next 16: the hooks call `revalidateTag(tag, { expire: 0 })`.
+- **Public content reads** (`lectures`, `papers`, `videos`, `flashcards`, `domains`, `topics`, `questions/stats`, sitemap) all go through `cachedQuery()` in `src/server/cache.ts`, used by `src/server/public-queries.ts`. Both the web pages and the `/api/v1` handlers call these functions, so there is one set of queries and one set of tags.
+  - Each query is tagged: `content` (everything), its collection (`lectures`), its item (`lecture:<slug>`, `flashcard:<id>`), and `domain:<slug>` / `topic:<slug>` when filtered. Lists and details that embed domain names also carry `domains` (and `topics`), so a rename refreshes them. Tag names come from `src/server/cache-tags.ts`, shared with the publish hooks, and an integration test checks that what a publish invalidates is what the queries are tagged with.
+  - `revalidate: 3600` on every cached query and page is only a safety net for a missed invalidation.
   - Response headers: `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (tune per resource).
+- **Pages**: index pages are static (`revalidate = 3600`); detail pages use an empty `generateStaticParams` and `dynamicParams`, so each is rendered on first request and then cached as ISR. Pages never read `searchParams`, which keeps them static. List pages render the first page on the server and later pages load in the browser through `packages/api-client`.
 - **On publish**: a Payload `afterChange` hook (and `afterDelete`) on each content collection calls tag revalidation for the item-level tag and the collection-level tag. No manual cache busting.
 - **Known staleness:** tag revalidation updates the Data Cache and pages immediately, but API responses already cached at Vercel's edge via `s-maxage` can stay stale for up to `s-maxage` (60s). This is accepted.
 - **Question reads require auth**, so `GET /questions/:id` and `GET /me/questions/next` are `private, no-store`. Only aggregate counts (`/questions/stats`) are public.
@@ -382,6 +386,11 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 - `src/collections/collections.test.ts` pins the security-relevant collection settings (field-level access, admin-only versions, server-only collections). If it fails, a refactor weakened a rule.
 - **No tests for Payload collections' internals** — trust Payload; test our code.
 - E2E with Playwright is deferred to v2.
+
+### Formatting and line endings
+
+- Run Prettier from the **repo root** (`pnpm format`, `pnpm format:check`). It reads `.prettierignore` only from the directory it runs in, so running it inside `apps/web` reformats generated files (`importMap.js`, `src/migrations/`, `payload-types.ts`) that must stay as Payload writes them.
+- `.gitattributes` pins LF everywhere (`* text=auto eol=lf`), so Windows checkouts and Linux CI agree.
 
 ### Commit & PR conventions
 
@@ -465,6 +474,8 @@ Each phase is shippable and tested before moving on.
 - SEO: metadata per page, sitemap, robots, JSON-LD.
 - Public read API (`/api/v1/...`) for domains, topics, lectures, papers, videos, flashcards and question stats, with mobile-friendly shapes and server-rendered rich-text HTML.
 - `packages/api-client` created with methods for every endpoint built so far.
+- **Done:** all of the above. Pages: `/`, `/lectures`, `/papers`, `/videos`, `/domains` and their detail pages, plus `sitemap.xml` and `robots.txt`. Verified by unit tests, by integration tests that run the real route handlers and the typed client against Postgres, by a production build, and by looking at the pages in a browser.
+- **Not built (decided):** no topic pages (topics group flashcards and questions, which come in Phases 5 and 6); a domain page lists only content assigned directly to that domain, not its sub-domains' content; no search; no Terms or Privacy pages yet (Phase 7); no custom 404 for URLs outside any route group.
 
 ### Phase 4 — Learner Auth
 

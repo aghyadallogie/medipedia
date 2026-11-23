@@ -1,0 +1,2 @@
+# One line ending everywhere, so Windows checkouts and Linux CI agree and Prettier never fights git.
+* text=auto eol=lf

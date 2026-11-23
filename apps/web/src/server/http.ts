@@ -40,6 +40,18 @@ export function ok<T>(data: T, options: { cache: CachePolicy; status?: number })
   )
 }
 
+/** `{ data: T[], nextCursor }`, the envelope every list endpoint uses. */
+export function okList<T>(
+  items: readonly T[],
+  nextCursor: string | null,
+  options: { cache: CachePolicy },
+): Response {
+  return Response.json(
+    { data: items, nextCursor },
+    { status: 200, headers: { 'Cache-Control': CACHE_CONTROL[options.cache] } },
+  )
+}
+
 export function errorResponse(error: unknown): Response {
   const apiError =
     error instanceof ApiError

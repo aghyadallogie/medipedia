@@ -20,6 +20,7 @@
     "migrate:status": "cross-env NODE_OPTIONS=--no-deprecation PAYLOAD_MIGRATING=true payload migrate:status"
   },
   "dependencies": {
+    "@medipedia/api-client": "workspace:*",
     "@medipedia/shared": "workspace:*",
     "@payloadcms/db-postgres": "3.94.1",
     "@payloadcms/next": "3.94.1",
