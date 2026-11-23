@@ -5,6 +5,7 @@ import type { LectureSummary, PaperSummary, Video } from '@medipedia/shared'
 import { useState } from 'react'
 
 import { CardGrid, LectureCard, PaperCard, VideoCard } from '@/components/cards'
+import { pressable } from '@/components/motion'
 
 type Loaded =
   | { kind: 'lectures'; item: LectureSummary }
@@ -77,7 +78,7 @@ export function LoadMore({ kind, initialCursor, domain, pageSize }: Props) {
 
       <div className="flex flex-col items-center gap-2" aria-live="polite">
         {status === 'error' ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-sm text-red-600 animate-fade-in dark:text-red-400">
             Could not load more. Check your connection and try again.
           </p>
         ) : null}
@@ -86,8 +87,21 @@ export function LoadMore({ kind, initialCursor, domain, pageSize }: Props) {
             type="button"
             onClick={loadNext}
             disabled={status === 'loading'}
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 sm:w-auto sm:py-2 dark:border-slate-700 dark:hover:bg-slate-800"
+            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 sm:w-auto sm:py-2 dark:border-slate-700 dark:hover:bg-slate-800 ${pressable}`}
           >
+            {status === 'loading' ? (
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4 motion-safe:animate-spin motion-reduce:animate-pulse"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M12 3a9 9 0 1 0 9 9" />
+              </svg>
+            ) : null}
             {status === 'loading' ? 'Loading…' : 'Load more'}
           </button>
         ) : (

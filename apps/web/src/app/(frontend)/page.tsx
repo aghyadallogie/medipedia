@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { CardGrid, LectureCard, PaperCard, VideoCard } from '@/components/cards'
+import { liftOnHover, pressable, sheen } from '@/components/motion'
 import { Container, EmptyState, Section } from '@/components/site-chrome'
 import { SITE_DESCRIPTION } from '@/lib/seo'
 import { listDomains, listLectures, listPapers, listVideos } from '@/server/public-queries'
@@ -30,13 +31,13 @@ export default async function HomePage() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/lectures"
-            className="rounded-lg bg-brand-600 px-4 py-3 text-sm font-medium text-white hover:bg-brand-700 sm:py-2.5"
+            className={`rounded-lg bg-brand-600 px-4 py-3 text-sm font-medium text-white hover:bg-brand-700 sm:py-2.5 ${pressable} ${sheen}`}
           >
             Browse lectures
           </Link>
           <Link
             href="/domains"
-            className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 sm:py-2.5 dark:border-slate-700 dark:hover:bg-slate-800"
+            className={`rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 sm:py-2.5 dark:border-slate-700 dark:hover:bg-slate-800 ${pressable}`}
           >
             Explore by domain
           </Link>
@@ -45,12 +46,12 @@ export default async function HomePage() {
 
       {topLevel.length > 0 ? (
         <Section title="Domains" href="/domains">
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {topLevel.map((domain) => (
               <li key={domain.id}>
                 <Link
                   href={`/domains/${domain.slug}`}
-                  className="block h-full rounded-xl border border-slate-200 p-4 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700"
+                  className={`block h-full rounded-xl border border-slate-200 p-4 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700 ${liftOnHover}`}
                 >
                   <span className="font-semibold">{domain.name}</span>
                   {domain.description ? (

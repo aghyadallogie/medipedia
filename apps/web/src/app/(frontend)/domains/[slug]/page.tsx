@@ -69,7 +69,7 @@ export default async function DomainPage({ params }: Props) {
             <Link
               key={child.id}
               href={`/domains/${child.slug}`}
-              className="rounded-full border border-slate-300 px-3 py-1 text-sm hover:border-brand-400 dark:border-slate-700"
+              className="rounded-full border border-slate-300 px-3 py-1 text-sm transition-colors duration-200 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800 dark:border-slate-700 dark:hover:bg-brand-950 dark:hover:text-brand-200"
             >
               {child.name}
             </Link>

@@ -13,12 +13,12 @@ const NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85">
+    <header className="site-header sticky top-0 z-30 border-b border-slate-200 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+        <Link href="/" className="group flex items-center gap-2 font-semibold tracking-tight">
           <span
             aria-hidden="true"
-            className="grid size-7 place-items-center rounded-md bg-brand-600 text-white"
+            className="logo-mark grid size-7 place-items-center rounded-md bg-brand-600 text-white"
           >
             <svg
               viewBox="0 0 24 24"
@@ -37,7 +37,7 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-md px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              className="nav-link rounded-md px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               {item.label}
             </Link>
@@ -75,7 +75,8 @@ export function Container({
   children: ReactNode
   className?: string
 }) {
-  return <div className={`mx-auto max-w-5xl px-4 ${className}`}>{children}</div>
+  // Every page is wrapped in a Container, so this is the one place that gives pages their entrance.
+  return <div className={`mx-auto max-w-5xl px-4 animate-fade-up ${className}`}>{children}</div>
 }
 
 export function PageHeading({
@@ -137,7 +138,7 @@ export function Breadcrumbs({ items }: { items: ReadonlyArray<{ name: string; hr
               {item.href ? (
                 <Link
                   href={item.href}
-                  className="py-1 hover:text-slate-900 hover:underline dark:hover:text-white"
+                  className="py-1 transition-colors duration-150 hover:text-slate-900 hover:underline dark:hover:text-white"
                 >
                   {item.name}
                 </Link>
@@ -160,7 +161,7 @@ export function Breadcrumbs({ items }: { items: ReadonlyArray<{ name: string; hr
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center sm:p-10 dark:border-slate-700">
+    <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center animate-fade-in sm:p-10 dark:border-slate-700">
       <p className="font-medium">{title}</p>
       {children ? (
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{children}</p>
@@ -183,8 +184,17 @@ export function Section({
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {href ? (
-          <Link href={href} className="text-sm text-brand-700 hover:underline dark:text-brand-300">
+          <Link
+            href={href}
+            className="group inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
+          >
             View all
+            <span
+              aria-hidden="true"
+              className="transition-transform duration-200 ease-out motion-safe:group-hover:translate-x-0.5"
+            >
+              →
+            </span>
           </Link>
         ) : null}
       </div>
