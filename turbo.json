@@ -22,7 +22,14 @@
       ]
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": ["^typecheck"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "PAYLOAD_SECRET",
+        "JWT_SECRET",
+        "NEXT_PUBLIC_SITE_URL"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
