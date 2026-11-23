@@ -20,6 +20,7 @@ export default defineConfig({
       DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:5432/medipedia_test',
       DATABASE_URL_UNPOOLED: 'postgres://postgres:postgres@127.0.0.1:5432/medipedia_test',
       PAYLOAD_SECRET: 'test-payload-secret-at-least-32-characters',
+      JWT_SECRET: 'test-jwt-secret-that-is-different-32-chars',
       NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
     },
   },

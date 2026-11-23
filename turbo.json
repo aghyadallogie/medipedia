@@ -14,6 +14,7 @@
         "BLOB_READ_WRITE_TOKEN",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_MOBILE_CLIENT_IDS",
         "RESEND_API_KEY",
         "EMAIL_FROM",
         "NEXT_PUBLIC_SITE_URL",
@@ -28,7 +29,7 @@
     },
     "test": {
       "dependsOn": ["^test"],
-      "passThroughEnv": ["DATABASE_URL", "PAYLOAD_SECRET", "NEXT_PUBLIC_SITE_URL"]
+      "passThroughEnv": ["DATABASE_URL", "PAYLOAD_SECRET", "NEXT_PUBLIC_SITE_URL", "JWT_SECRET"]
     },
     "test:int": {
       "cache": false,
@@ -36,7 +37,8 @@
         "DATABASE_URL",
         "DATABASE_URL_UNPOOLED",
         "PAYLOAD_SECRET",
-        "NEXT_PUBLIC_SITE_URL"
+        "NEXT_PUBLIC_SITE_URL",
+        "JWT_SECRET"
       ]
     },
     "dev": {

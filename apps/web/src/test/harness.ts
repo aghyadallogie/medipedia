@@ -64,6 +64,8 @@ type CreateArgs<C extends CollectionSlug> = {
   context?: RequestContext
   user?: unknown
   overrideAccess?: boolean
+  /** Users only: skip the verification email. */
+  disableVerificationEmail?: boolean
 }
 
 /**

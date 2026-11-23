@@ -111,7 +111,8 @@ All collections use Payload's field types. Timestamps (`createdAt`, `updatedAt`)
 - `provider` — `email` | `google`
 - `googleSub` (string, unique, nullable — Google account ID)
 - `role` — `learner` (default) | `admin`
-- `emailVerified` (added with email verification in Phase 4)
+- `emailVerified` — stored as Payload's own `_verified` field (Payload's `verify` flow sets it); the API exposes it as `emailVerified`. Accounts made by the first-user screen, by an admin, or through Google are verified from the start; accounts that sign up through the public API are not until they use the emailed link.
+- A signed-in non-admin can never change their own `email` or `_verified` (a `beforeChange` hook restores them), so an account cannot be pointed at someone else's address and later linked to that person's Google sign-in.
 - Access: learners can read/update self (never their own `role`); admins full access.
 - Admins are `Users` with `role: 'admin'`. Payload admin panel access is gated on `role === 'admin'`. There is no separate `Admins` collection and only one editorial role in v1.
 - The first account ever created becomes an admin; every later one is a `learner`.
@@ -243,17 +244,19 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 
 ### Architecture
 
-- **Credential check:** `/api/v1/auth/login` calls Payload's Local API `login` (email/password) to verify credentials and email verification. We do not use the token Payload returns for learners.
+- **Credential check:** `/api/v1/auth/login` calls Payload's Local API `login` (email/password) to verify credentials and email verification. We do not use the token Payload returns for learners. Payload counts failures and locks an account for 10 minutes after 5 wrong passwords. It checks the password before the verification flag, so an unconfirmed account is never revealed to someone who does not know its password.
 - **Access tokens:** we sign them ourselves with `jose`, HS256, `JWT_SECRET`, TTL **15 minutes**. Claims: `sub` (user id), `role`, `aud` (`web` | `mobile`), `iat`, `exp`.
 - **Payload integration:** a custom Payload auth strategy on `Users` verifies our access token (from the `access_token` cookie or an `Authorization: Bearer` header) and sets `req.user`, so Payload access functions and our route handlers see the same user.
 - **Refresh tokens:** opaque random 32-byte values, stored only as SHA-256 hashes in `RefreshTokens`. TTL **7 days** (web) and **30 days** (mobile).
-- **Rotation:** every refresh revokes the old token and issues a new one in the same `familyId`. If a revoked token is presented again, revoke the whole family (token theft signal).
-- **Google OAuth:** authorization-code flow with PKCE and `state`. Exchange the code at Google's token endpoint, verify the ID token with `jose` against Google's JWKS, then find or create the user by `googleSub` (or link by verified email). Mobile will use the same verification path with a native-obtained ID token (`POST /api/v1/auth/google/mobile`).
+- **Rotation:** every refresh revokes the old token and issues a new one in the same `familyId`, in one database transaction, with a conditional update so that of two simultaneous requests exactly one rotates. If a revoked token is presented again, revoke the whole family (token theft signal).
+- **Duplicate-refresh grace:** a token rotated less than 10 seconds ago (`REFRESH_REUSE_GRACE_SECONDS`) is not treated as theft: browsers fire parallel requests that all refresh with the same cookie when the access token has just expired. Inside the window it mints a new _access_ token only, never a new refresh token, and only while the family still has a live token (a logout in between still wins). Older reuse revokes the family.
+- **Google OAuth:** authorization-code flow with PKCE (S256), `state` and `nonce`, kept in a 10-minute httpOnly cookie scoped to `/api/v1/auth/google`. Exchange the code at Google's token endpoint, verify the ID token with `jose` against Google's JWKS (RS256 only, issuer, audience, expiry, `nonce`, and `email_verified` must be true), then find the user by `googleSub`, else link by email, else create a confirmed learner (provider `google`, random unusable password). Linking to an account that was never confirmed replaces its password and revokes its sessions, so whoever registered the address first loses access; an address already linked to a different Google account is refused. Mobile uses the same verification with a native-obtained ID token (`POST /api/v1/auth/google/mobile`), accepting `GOOGLE_CLIENT_ID` and `GOOGLE_MOBILE_CLIENT_IDS` as audiences. Every failure on the browser flow ends on `/sign-in?error=...`, never raw JSON. `returnTo` must be a same-site path.
 - **Admins:** Payload native auth at `/admin` with `PAYLOAD_SECRET`. `JWT_SECRET` and `PAYLOAD_SECRET` are different values.
 
 ### Transport
 
-1. **Web** — `access_token` and `refresh_token` as httpOnly, `Secure`, `SameSite=Lax` cookies. The refresh cookie is scoped to `/api/v1/auth`. Next.js middleware refreshes an expired access token server-side when a valid refresh cookie exists.
+1. **Web** — `access_token` and `refresh_token` as httpOnly, `Secure`, `SameSite=Lax` cookies. The refresh cookie is scoped to `/api/v1/auth`. A third, non-httpOnly cookie `signed_in=1` (no secret, lives as long as the refresh cookie) lets the header show "Account" or "Sign in" without a request, so public pages stay static.
+   - **Page refresh (decided):** because the refresh cookie is invisible outside `/api/v1/auth`, Next's `proxy.ts` (Next 16's middleware) cannot refresh by itself. For pages that need a signed-in user (matcher in `src/proxy.ts`, today `/account`) it checks the access token's signature and, if it is missing or expired, redirects to `GET /api/v1/auth/refresh?next=<path>`. That endpoint rotates the cookies and redirects back, or to `/sign-in?next=<path>` when there is nothing to renew. `next` must be a same-site path. The same proxy keeps signed-in visitors off the guest pages (`/sign-in`, `/sign-up`, `/forgot-password`): a valid access token sends them to `?next=` or `/account`; an expired one with the `signed_in` hint goes through the refresh endpoint first, and a visit that already carries `?next=` is left alone so a failed refresh cannot loop. Client components get the same effect from `packages/api-client`, whose `refresh` option renews once (shared by concurrent requests) on a 401 and retries.
 2. **Mobile** — `Authorization: Bearer <accessToken>`; refresh token stored in the OS secure store and sent in the body of `POST /api/v1/auth/refresh`.
 
 ### Rules
@@ -261,7 +264,13 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 - **Never** expose `JWT_SECRET` or `PAYLOAD_SECRET` to the client.
 - All `/api/v1/me/*` routes and all `/api/v1/questions/*` routes require auth. Other public content routes require no auth.
 - Logout revokes the refresh token family for that device.
-- `DELETE /api/v1/me` deletes the account, its `AnswerEvents` and its `RefreshTokens` (App Store account-deletion requirement).
+- `DELETE /api/v1/me` deletes the account, its `AnswerEvents` and its `RefreshTokens` (App Store account-deletion requirement). Accounts with a password (`provider: 'email'`) must send it to confirm, and a wrong guess counts towards the lockout. Google-only accounts have no password to confirm.
+- **No account enumeration:** register and forgot-password answer `202 { ok: true }` whether or not the address has an account; a wrong password and an unknown address give the same `401 invalid_credentials`. Register for an unconfirmed address re-sends the link and changes nothing else; for a confirmed address it does nothing.
+- **Reasons:** auth failures carry `error.details.reason`: `invalid_credentials`, `email_not_verified`, `account_locked`, `invalid_token`, `token_reused`, `google_unavailable`. Clients may react to them; messages are not a contract.
+- **CSRF:** cookie-authenticated state-changing routes refuse `Sec-Fetch-Site: cross-site` and a foreign `Origin`, and require `Content-Type: application/json` (a cross-site form cannot send it). Requests with neither header (mobile, curl, server calls) pass because they carry no ambient cookies. Bodies are capped at 16 KB.
+- Resetting a password revokes every refresh token of the account and confirms the address.
+- The access token's `role` claim is informational. Every request re-reads the user, so deleting or demoting an account takes effect at once.
+- **Known gap (Phase 7):** Payload's own auth routes under `/api/cms/users/*` (login, forgot-password and so on, used by the admin panel) still exist and are not rate limited. The lockout covers password guessing, but Phase 7 should restrict or rate limit them.
 - Apple Sign-In will be added when the iOS app ships (App Store requirement). Add it to this doc when we do.
 
 ### Roles & Access
@@ -295,7 +304,7 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 ### Endpoints (v1)
 
 - Public: `GET /domains`, `GET /domains/:slug`, `GET /topics`, `GET /lectures`, `GET /lectures/:slug`, `GET /papers`, `GET /papers/:slug`, `GET /videos`, `GET /videos/:slug`, `GET /flashcards?topic=&domain=`, `GET /flashcards/:id/back`, `GET /questions/stats` (public counts per domain/topic only).
-- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `POST /auth/verify-email`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/google`, `GET /auth/google/callback`, `POST /auth/google/mobile`.
+- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `POST /auth/verify-email`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/google`, `GET /auth/google/callback`, `POST /auth/google/mobile`, and `GET /auth/refresh?next=` (browser page navigations only, see §5; not part of the mobile contract).
 - Authenticated: `GET /me`, `PATCH /me`, `DELETE /me`, `GET /me/analytics`, `GET /me/questions/next?domains=&topics=&filter=unused|incorrect|all`, `GET /questions/:id`, `POST /questions/:id/answer`.
 
 **Answer submission flow (critical):**
@@ -401,20 +410,21 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 
 ## 11. Environment Variables
 
-Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env fails the build). A variable stays optional in `env.ts` until the phase that first uses it, then becomes required: Phase 1 needs `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `PAYLOAD_SECRET` and `NEXT_PUBLIC_SITE_URL`; `BLOB_READ_WRITE_TOKEN` is optional locally, where uploads fall back to `apps/web/media`, and required on Vercel preview and production (`VERCEL_ENV`); Phase 4 adds the auth and email variables.
+Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env fails the build). A variable stays optional in `env.ts` until the phase that first uses it, then becomes required: Phase 1 needs `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `PAYLOAD_SECRET` and `NEXT_PUBLIC_SITE_URL`; `BLOB_READ_WRITE_TOKEN` is optional locally, where uploads fall back to `apps/web/media`, and required on Vercel preview and production (`VERCEL_ENV`); Phase 4 makes `JWT_SECRET` (at least 32 characters, different from `PAYLOAD_SECRET`) required everywhere, and `RESEND_API_KEY` and `EMAIL_FROM` required on Vercel preview and production; locally, without them, emails are written to the server console.
 
-| Variable                | Purpose                                                               |
-| ----------------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`          | Neon pooled connection string (runtime)                               |
-| `DATABASE_URL_UNPOOLED` | Neon direct connection string (migrations)                            |
-| `PAYLOAD_SECRET`        | Payload's own signing secret (admin panel)                            |
-| `JWT_SECRET`            | Learner access-token signing secret (different from `PAYLOAD_SECRET`) |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage                                                   |
-| `GOOGLE_CLIENT_ID`      | Google OAuth                                                          |
-| `GOOGLE_CLIENT_SECRET`  | Google OAuth                                                          |
-| `RESEND_API_KEY`        | Transactional email                                                   |
-| `EMAIL_FROM`            | Sender address for transactional email                                |
-| `NEXT_PUBLIC_SITE_URL`  | Canonical site URL (SEO, OAuth redirect, email links)                 |
+| Variable                   | Purpose                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`             | Neon pooled connection string (runtime)                                 |
+| `DATABASE_URL_UNPOOLED`    | Neon direct connection string (migrations)                              |
+| `PAYLOAD_SECRET`           | Payload's own signing secret (admin panel)                              |
+| `JWT_SECRET`               | Learner access-token signing secret (different from `PAYLOAD_SECRET`)   |
+| `BLOB_READ_WRITE_TOKEN`    | Vercel Blob storage                                                     |
+| `GOOGLE_CLIENT_ID`         | Google OAuth                                                            |
+| `GOOGLE_CLIENT_SECRET`     | Google OAuth (set both or neither; without them Google sign-in is off)  |
+| `GOOGLE_MOBILE_CLIENT_IDS` | Comma-separated native-app client IDs accepted by `/auth/google/mobile` |
+| `RESEND_API_KEY`           | Transactional email                                                     |
+| `EMAIL_FROM`               | Sender address for transactional email                                  |
+| `NEXT_PUBLIC_SITE_URL`     | Canonical site URL (SEO, OAuth redirect, email links)                   |
 
 Required from Phase 7:
 
@@ -482,10 +492,12 @@ Each phase is shippable and tested before moving on.
 - Start with a spike that proves the custom Payload auth strategy + `jose` access tokens + refresh rotation end to end.
 - Email/password registration with verification, login, logout, forgot/reset password (Resend).
 - Google OAuth (web flow + mobile ID-token endpoint).
-- Cookies on web, Bearer on mobile; middleware refresh on web.
+- Cookies on web, Bearer on mobile; `proxy.ts` plus a refresh redirect on web (see §5).
 - `/api/v1/me` (`GET`, `PATCH`, `DELETE`) and `/api/v1/auth/*`.
 - Refresh token rotation, family revocation and reuse detection.
-- Web: sign-up, sign-in, account pages.
+- Web: sign-up, sign-in, forgot/reset password, email confirmation and account pages.
+- **Done:** all of the above. Pages: `/sign-up`, `/sign-in`, `/forgot-password`, `/reset-password`, `/verify-email`, `/account`. Verified by unit tests, by integration tests that call the real route handlers against Postgres (registration through deletion, rotation and reuse detection, CSRF, Google with a mocked token endpoint and signed ID tokens), and by walking the flow in a browser (sign-up, confirm, sign-in, rename, wrong-password and correct-password deletion, expired-session redirect).
+- **Not exercised:** a real Resend delivery and a real Google sign-in (no credentials configured locally).
 
 ### Phase 5 — Question Bank & Analytics
 

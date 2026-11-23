@@ -33,9 +33,14 @@ const ServerEnvSchema = z
     BLOB_READ_WRITE_TOKEN: optionalString(z.string()),
 
     // Phase 4 (learner auth, email)
-    JWT_SECRET: optionalString(z.string().min(32, 'must be at least 32 characters')),
+    /** Signs learner access tokens. Different from PAYLOAD_SECRET. */
+    JWT_SECRET: z.string().min(32, 'must be at least 32 characters'),
+    // Google sign-in is switched on when both are set. Without them the buttons are hidden.
     GOOGLE_CLIENT_ID: optionalString(z.string()),
     GOOGLE_CLIENT_SECRET: optionalString(z.string()),
+    /** Comma-separated extra Google client IDs (iOS, Android) accepted by the mobile endpoint. */
+    GOOGLE_MOBILE_CLIENT_IDS: optionalString(z.string()),
+    // Optional locally, where emails are printed to the console instead of sent.
     RESEND_API_KEY: optionalString(z.string()),
     EMAIL_FROM: optionalString(z.string()),
 
@@ -43,7 +48,7 @@ const ServerEnvSchema = z
     UPSTASH_REDIS_REST_URL: optionalString(z.url()),
     UPSTASH_REDIS_REST_TOKEN: optionalString(z.string()),
   })
-  .refine((env) => env.JWT_SECRET === undefined || env.JWT_SECRET !== env.PAYLOAD_SECRET, {
+  .refine((env) => env.JWT_SECRET !== env.PAYLOAD_SECRET, {
     message: 'JWT_SECRET must differ from PAYLOAD_SECRET (AGENTS.md §5)',
     path: ['JWT_SECRET'],
   })
@@ -56,6 +61,27 @@ const ServerEnvSchema = z
     {
       message: 'BLOB_READ_WRITE_TOKEN is required on Vercel preview and production deployments',
       path: ['BLOB_READ_WRITE_TOKEN'],
+    },
+  )
+
+  // Real emails must be sent from Vercel deployments: verification and password reset depend on them.
+  .refine(
+    (env) =>
+      env.VERCEL_ENV === undefined ||
+      env.VERCEL_ENV === 'development' ||
+      (env.RESEND_API_KEY !== undefined && env.EMAIL_FROM !== undefined),
+    {
+      message:
+        'RESEND_API_KEY and EMAIL_FROM are required on Vercel preview and production deployments',
+      path: ['RESEND_API_KEY'],
+    },
+  )
+  // Google sign-in needs both halves of the credential pair.
+  .refine(
+    (env) => (env.GOOGLE_CLIENT_ID === undefined) === (env.GOOGLE_CLIENT_SECRET === undefined),
+    {
+      message: 'Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither',
+      path: ['GOOGLE_CLIENT_SECRET'],
     },
   )
 

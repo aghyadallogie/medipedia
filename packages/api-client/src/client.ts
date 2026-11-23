@@ -1,4 +1,5 @@
 import {
+  AckResponseSchema,
   ApiErrorBodySchema,
   DomainListResponseSchema,
   DomainResponseSchema,
@@ -10,19 +11,30 @@ import {
   PaperListResponseSchema,
   PaperResponseSchema,
   QuestionStatsResponseSchema,
+  RefreshSessionResponseSchema,
+  SessionResponseSchema,
   TopicListResponseSchema,
+  UserResponseSchema,
   VideoListResponseSchema,
   VideoResponseSchema,
   type ClientKind,
   type Domain,
   type Flashcard,
   type FlashcardBack,
+  type ForgotPasswordBody,
+  type GoogleMobileBody,
   type Lecture,
   type LectureSummary,
+  type LoginBody,
   type Paper,
   type PaperSummary,
   type QuestionStats,
+  type RefreshSession,
+  type RegisterBody,
+  type ResetPasswordBody,
+  type Session,
   type Topic,
+  type User,
   type Video,
 } from '@medipedia/shared'
 
@@ -37,6 +49,15 @@ export type ApiClientOptions = {
   getAccessToken?: () => string | null | Promise<string | null>
   /** Extra headers on every request. */
   headers?: Record<string, string>
+  /**
+   * Called when an authenticated request is answered with 401, to get a new access token. On the
+   * web, which keeps its tokens in cookies: `() => api.auth.refresh().then(() => true, () => false)`.
+   * Return true to retry the request once. Concurrent 401s share one call, so a burst of requests
+   * rotates the refresh token only once.
+   */
+  refresh?: () => Promise<boolean>
+  /** Passed to `fetch`. A browser talking to another origin needs 'include' to send cookies. */
+  credentials?: RequestCredentials
 }
 
 /** One page of a list endpoint. Pass `nextCursor` as `cursor` to get the next page. */
@@ -46,26 +67,51 @@ export type ListOptions = { cursor?: string; limit?: number }
 export type DomainFilterOptions = ListOptions & { domain?: string }
 export type FlashcardListOptions = DomainFilterOptions & { topic?: string; client?: ClientKind }
 
+/** Sign-in input. `client` defaults to 'web' on the server. */
+export type LoginInput = Omit<LoginBody, 'client'> & { client?: ClientKind }
+
 type Schema<T> = { parse: (input: unknown) => T }
 type Query = Record<string, string | number | undefined>
+type RequestOptions = { query?: Query; body?: unknown; retried?: boolean }
 
 export function createApiClient(options: ApiClientOptions) {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis)
   const root = `${options.baseUrl.replace(/\/+$/, '')}/api/v1`
 
-  async function get<T>(path: string, schema: Schema<T>, query: Query = {}): Promise<T> {
+  let refreshing: Promise<boolean> | null = null
+  const refreshOnce = (): Promise<boolean> => {
+    refreshing ??= (options.refresh?.() ?? Promise.resolve(false))
+      .catch(() => false)
+      .finally(() => {
+        refreshing = null
+      })
+    return refreshing
+  }
+
+  async function send<T>(
+    method: string,
+    path: string,
+    schema: Schema<T>,
+    { query = {}, body, retried = false }: RequestOptions = {},
+  ): Promise<T> {
     const url = new URL(`${root}${path}`)
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value))
     }
 
     const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
     const token = await options.getAccessToken?.()
     if (token) headers.Authorization = `Bearer ${token}`
 
     let response: Response
     try {
-      response = await doFetch(url.toString(), { method: 'GET', headers })
+      response = await doFetch(url.toString(), {
+        method,
+        headers,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(options.credentials ? { credentials: options.credentials } : {}),
+      })
     } catch (cause) {
       throw new ApiClientError({
         code: 'network_error',
@@ -75,9 +121,17 @@ export function createApiClient(options: ApiClientOptions) {
       })
     }
 
-    let body: unknown
+    // An expired access token: refresh once and replay. Never for the auth endpoints themselves,
+    // where a 401 means the credentials were wrong.
+    if (response.status === 401 && options.refresh && !retried && !path.startsWith('/auth/')) {
+      if (await refreshOnce()) {
+        return send(method, path, schema, { query, body, retried: true })
+      }
+    }
+
+    let parsedBody: unknown
     try {
-      body = await response.json()
+      parsedBody = await response.json()
     } catch (cause) {
       throw new ApiClientError({
         code: 'invalid_response',
@@ -88,7 +142,7 @@ export function createApiClient(options: ApiClientOptions) {
     }
 
     if (!response.ok) {
-      const parsed = ApiErrorBodySchema.safeParse(body)
+      const parsed = ApiErrorBodySchema.safeParse(parsedBody)
       if (parsed.success) {
         const { code, message, details } = parsed.data.error
         throw new ApiClientError({ code, message, status: response.status, details })
@@ -101,7 +155,7 @@ export function createApiClient(options: ApiClientOptions) {
     }
 
     try {
-      return schema.parse(body)
+      return schema.parse(parsedBody)
     } catch (cause) {
       throw new ApiClientError({
         code: 'invalid_response',
@@ -111,6 +165,11 @@ export function createApiClient(options: ApiClientOptions) {
       })
     }
   }
+
+  const get = <T>(path: string, schema: Schema<T>, query: Query = {}) =>
+    send('GET', path, schema, { query })
+  const post = <T>(path: string, schema: Schema<T>, body: unknown = {}) =>
+    send('POST', path, schema, { body })
 
   async function page<T>(
     path: string,
@@ -164,6 +223,67 @@ export function createApiClient(options: ApiClientOptions) {
         page('/flashcards', FlashcardListResponseSchema, query),
       back: async (id: string): Promise<FlashcardBack> =>
         (await get(`/flashcards/${slug(id)}/back`, FlashcardBackResponseSchema)).data,
+    },
+
+    auth: {
+      /**
+       * Creates an account and emails a confirmation link. The answer is the same whether or not
+       * the address already has an account.
+       */
+      register: async (body: RegisterBody): Promise<void> => {
+        await post('/auth/register', AckResponseSchema, body)
+      },
+      verifyEmail: async (token: string): Promise<void> => {
+        await post('/auth/verify-email', AckResponseSchema, { token })
+      },
+      /**
+       * Web (default): the server sets httpOnly cookies and `tokens` is absent. With
+       * `client: 'mobile'` the tokens come back in the body: keep the refresh token in the
+       * secure store and pass the access token through `getAccessToken`.
+       */
+      login: async (body: LoginInput): Promise<Session> =>
+        (await post('/auth/login', SessionResponseSchema, body)).data,
+      /**
+       * Web: call with no argument (the refresh cookie is sent for you). Mobile: pass the stored
+       * refresh token. A duplicate refresh within seconds returns an access token without a new
+       * refresh token: keep the one you have.
+       */
+      refresh: async (refreshToken?: string): Promise<RefreshSession> =>
+        (
+          await post(
+            '/auth/refresh',
+            RefreshSessionResponseSchema,
+            refreshToken ? { refreshToken } : {},
+          )
+        ).data,
+      logout: async (refreshToken?: string): Promise<void> => {
+        await post('/auth/logout', AckResponseSchema, refreshToken ? { refreshToken } : {})
+      },
+      forgotPassword: async (body: ForgotPasswordBody): Promise<void> => {
+        await post('/auth/forgot-password', AckResponseSchema, body)
+      },
+      resetPassword: async (body: ResetPasswordBody): Promise<void> => {
+        await post('/auth/reset-password', AckResponseSchema, body)
+      },
+      /** Mobile: exchange the ID token the Google SDK produced for our tokens. */
+      googleMobile: async (body: GoogleMobileBody): Promise<Session> =>
+        (await post('/auth/google/mobile', SessionResponseSchema, body)).data,
+      /** Web: where to send the browser to start "Sign in with Google". */
+      googleSignInUrl: (returnTo?: string): string => {
+        const url = new URL(`${root}/auth/google`)
+        if (returnTo) url.searchParams.set('returnTo', returnTo)
+        return url.toString()
+      },
+    },
+
+    me: {
+      get: async (): Promise<User> => (await get('/me', UserResponseSchema)).data,
+      update: async (body: { name: string }): Promise<User> =>
+        (await send('PATCH', '/me', UserResponseSchema, { body })).data,
+      /** Accounts with a password must send it to confirm. */
+      delete: async (body: { password?: string } = {}): Promise<void> => {
+        await send('DELETE', '/me', AckResponseSchema, { body })
+      },
     },
 
     questions: {
