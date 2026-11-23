@@ -74,8 +74,9 @@ export function Container({
   children: ReactNode
   className?: string
 }) {
-  // Every page is wrapped in a Container, so this is the one place that gives pages their entrance.
-  return <div className={`mx-auto max-w-5xl px-4 animate-fade-up ${className}`}>{children}</div>
+  // Every page is wrapped in a Container, and a navigation mounts a new one, so this is the one
+  // place that gives pages their transition (see "Page transitions" in globals.css).
+  return <div className={`mx-auto max-w-5xl px-4 animate-page-in ${className}`}>{children}</div>
 }
 
 export function PageHeading({

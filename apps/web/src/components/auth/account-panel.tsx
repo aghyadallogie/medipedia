@@ -117,7 +117,7 @@ function DeleteAccount({ user }: { user: User }) {
           onClick={() => setOpen(true)}
           className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
         >
-          Delete account…
+          Delete account
         </SecondaryButton>
       )}
     </Card>

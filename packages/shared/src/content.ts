@@ -207,18 +207,23 @@ export type Paper = z.infer<typeof PaperSchema>
 
 // ---------- videos ----------
 
-export const VideoSchema = z.object({
+/** What a video list carries: everything but the description, which only the detail page shows. */
+export const VideoSummarySchema = z.object({
   id: IdSchema,
   slug: SlugSchema,
   title: z.string(),
   provider: VideoProviderSchema,
   embedUrl: z.url(),
   thumbnailUrl: z.string().nullable(),
-  description: RichTextSchema,
   domain: DomainRefSchema.nullable(),
   durationSeconds: z.number().int().nonnegative().nullable(),
   reviewedAt: IsoDateTimeSchema.nullable(),
   accessTier: AccessTierSchema,
   updatedAt: IsoDateTimeSchema,
+})
+export type VideoSummary = z.infer<typeof VideoSummarySchema>
+
+export const VideoSchema = VideoSummarySchema.extend({
+  description: RichTextSchema,
 })
 export type Video = z.infer<typeof VideoSchema>

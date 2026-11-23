@@ -2,7 +2,7 @@
  * Presentational cards for content DTOs. They hold no server-only code, so the server pages and
  * the client-side "load more" list render the same markup.
  */
-import type { DomainRef, LectureSummary, PaperSummary, Video } from '@medipedia/shared'
+import type { DomainRef, LectureSummary, PaperSummary, VideoSummary } from '@medipedia/shared'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -116,7 +116,7 @@ export function PaperCard({ paper }: { paper: PaperSummary }) {
   )
 }
 
-export function VideoCard({ video }: { video: Video }) {
+export function VideoCard({ video }: { video: VideoSummary }) {
   return (
     <Link href={`/videos/${video.slug}`} className={cardClass}>
       <CardArrow />

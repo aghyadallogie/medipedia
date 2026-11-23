@@ -17,6 +17,7 @@ import {
   type TopicRef,
   type Topic as TopicDto,
   type Video as VideoDto,
+  type VideoSummary,
 } from '@medipedia/shared'
 
 import type { Domain, Flashcard, Lecture, Media, Paper, Topic, Video } from '@/payload-types'
@@ -194,7 +195,23 @@ export const toPaper = (doc: Paper): PaperDto => ({
 
 // ---------- videos ----------
 
-export function toVideo(doc: Video): VideoDto {
+export type VideoSummaryDoc = Pick<
+  Video,
+  | 'id'
+  | 'slug'
+  | 'title'
+  | 'provider'
+  | 'providerVideoId'
+  | 'embedUrl'
+  | 'thumbnail'
+  | 'domain'
+  | 'durationSeconds'
+  | 'reviewedAt'
+  | 'accessTier'
+  | 'updatedAt'
+>
+
+export function toVideoSummary(doc: VideoSummaryDoc): VideoSummary {
   const provider = doc.provider ?? 'other'
   const uploaded = toMedia(doc.thumbnail)
   const derived =
@@ -206,7 +223,6 @@ export function toVideo(doc: Video): VideoDto {
     provider,
     embedUrl: doc.embedUrl,
     thumbnailUrl: uploaded?.url ?? derived,
-    description: lexicalToRichText(doc.description),
     domain: optionalDomainRef(doc.domain),
     durationSeconds: doc.durationSeconds ?? null,
     reviewedAt: doc.reviewedAt ?? null,
@@ -214,3 +230,8 @@ export function toVideo(doc: Video): VideoDto {
     updatedAt: doc.updatedAt,
   }
 }
+
+export const toVideo = (doc: Video): VideoDto => ({
+  ...toVideoSummary(doc),
+  description: lexicalToRichText(doc.description),
+})

@@ -1,7 +1,7 @@
 'use client'
 
 import { createApiClient } from '@medipedia/api-client'
-import type { LectureSummary, PaperSummary, Video } from '@medipedia/shared'
+import type { LectureSummary, PaperSummary, VideoSummary } from '@medipedia/shared'
 import { useState } from 'react'
 
 import { CardGrid, LectureCard, PaperCard, VideoCard } from '@/components/cards'
@@ -10,7 +10,7 @@ import { pressable } from '@/components/motion'
 type Loaded =
   | { kind: 'lectures'; item: LectureSummary }
   | { kind: 'papers'; item: PaperSummary }
-  | { kind: 'videos'; item: Video }
+  | { kind: 'videos'; item: VideoSummary }
 
 type Props = {
   kind: Loaded['kind']

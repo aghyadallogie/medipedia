@@ -33,6 +33,7 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --animate-fade-up: fade-up 280ms var(--ease-out-soft) both;
+  --animate-page-in: page-in 240ms var(--ease-out-soft) both;
   --animate-fade-in: fade-in 200ms ease-out both;
   --animate-menu-in: menu-in 180ms var(--ease-out-soft) both;
   --animate-icon-in: icon-in 180ms var(--ease-out-soft) both;
@@ -43,6 +44,16 @@
   @keyframes fade-up {
     from {
       opacity: 0;
+      transform: translateY(calc(8px * var(--motion, 1)));
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes page-in {
+    from {
+      opacity: 0.55;
       transform: translateY(calc(8px * var(--motion, 1)));
     }
     to {
@@ -145,8 +156,8 @@
 /* ---------- Backdrop ----------
  * A fixed, page-wide layer behind everything: soft blue light falling from the top with a trace
  * of gold, and a fine dot grid that fades out towards the bottom. Gradients only (no blur
- * filters), so it costs next to nothing to paint. The glow drifts very slowly when motion is
- * allowed, and stays put otherwise.
+ * filters) and never animates, so it costs next to nothing to paint and the browser has nothing
+ * to recompute behind the blurred header while the page sits idle.
  */
 .site-backdrop {
   position: fixed;
@@ -164,7 +175,6 @@
     radial-gradient(60rem 34rem at 50% -6rem, rgb(52 105 220 / 0.17), transparent 70%),
     radial-gradient(34rem 26rem at 90% 6%, rgb(232 169 42 / 0.09), transparent 70%),
     radial-gradient(42rem 30rem at 2% 32%, rgb(91 141 239 / 0.1), transparent 70%);
-  animation: backdrop-drift 32s ease-in-out infinite alternate;
 }
 
 .site-backdrop::after {
@@ -174,15 +184,6 @@
   background-image: radial-gradient(circle, rgb(21 44 99 / 0.16) 1px, transparent 1.3px);
   background-size: 26px 26px;
   mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 10%, transparent 75%);
-}
-
-@keyframes backdrop-drift {
-  from {
-    transform: translate3d(calc(-2% * var(--motion, 1)), 0, 0);
-  }
-  to {
-    transform: translate3d(calc(2% * var(--motion, 1)), calc(3% * var(--motion, 1)), 0);
-  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -197,15 +198,27 @@
   }
 }
 
+/* ---------- Page transitions ----------
+ * A new page rises 8px and fades up from 55% to full over 240 ms. It is a plain CSS animation on
+ * the page container, which a navigation mounts fresh, and it is built to cost nothing:
+ *  - transform and opacity only, so it runs on the compositor with no layout or repaint;
+ *  - content never starts invisible (55%, not 0), so first paint and Largest Contentful Paint are
+ *    not held back, and a transition can never leave a blank page if a script is slow;
+ *  - nothing waits on it: the new page is committed and interactive immediately, there is no
+ *    snapshot of the old page, and no exit animation delaying the click.
+ * The browser View Transitions API (React's <ViewTransition>) was tried and rejected: React holds
+ * the commit back until images in the new page have loaded (up to 800 ms), and the page is frozen
+ * meanwhile. A navigation that is sometimes slower is the opposite of smoother.
+ * Reduced motion removes the movement through --motion and leaves a gentle fade.
+ */
+
 /* ---------- Motion ---------- */
 
 @keyframes stagger-in {
   from {
-    opacity: 0;
     transform: translateY(calc(10px * var(--motion, 1)));
   }
   to {
-    opacity: 1;
     transform: none;
   }
 }
@@ -219,9 +232,9 @@
   }
 }
 
-/* Cards in a grid appear one after another (rising, or just fading with reduced motion). */
+/* Cards in a grid rise into place one after another (movement only, so first paint is never held back). */
 .stagger > * {
-  animation: stagger-in 340ms var(--ease-out-soft) both;
+  animation: stagger-in 260ms var(--ease-out-soft) both;
 }
 .stagger > :nth-child(2) {
   animation-delay: 45ms;
