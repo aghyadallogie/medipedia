@@ -33,8 +33,8 @@ function layout(args: {
     .map((text) => `<p style="margin:0 0 16px">${text}</p>`)
     .join('')
   const action = args.action
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(args.action.url)}" style="background:#1a7d75;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(args.action.label)}</a></p>
-<p style="margin:0 0 16px;color:#475569;font-size:14px">Or paste this link into your browser:<br><a href="${escapeHtml(args.action.url)}" style="color:#1a7d75;word-break:break-all">${escapeHtml(args.action.url)}</a></p>`
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(args.action.url)}" style="background:#1f4fc0;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(args.action.label)}</a></p>
+<p style="margin:0 0 16px;color:#475569;font-size:14px">Or paste this link into your browser:<br><a href="${escapeHtml(args.action.url)}" style="color:#1f4fc0;word-break:break-all">${escapeHtml(args.action.url)}</a></p>`
     : ''
   return `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0f172a;line-height:1.55">
 <h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(args.heading)}</h1>

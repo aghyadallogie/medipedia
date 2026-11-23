@@ -6,18 +6,22 @@
     'Noto Sans', sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
 
-  /* Brand: a calm clinical teal. */
-  --color-brand-50: #effaf8;
-  --color-brand-100: #d3f3ee;
-  --color-brand-200: #a8e6dc;
-  --color-brand-300: #72d2c5;
-  --color-brand-400: #3fb8aa;
-  --color-brand-500: #249c90;
-  --color-brand-600: #1a7d75;
-  --color-brand-700: #19645f;
-  --color-brand-800: #18504d;
-  --color-brand-900: #174341;
-  --color-brand-950: #07282a;
+  /* Brand: the deep blue of the logo. 700-950 are its navy, 500-600 its brighter highlight. */
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbe8ff;
+  --color-brand-200: #bcd3ff;
+  --color-brand-300: #8db4fb;
+  --color-brand-400: #5b8def;
+  --color-brand-500: #3469dc;
+  --color-brand-600: #1f4fc0;
+  --color-brand-700: #1b3f9d;
+  --color-brand-800: #18357e;
+  --color-brand-900: #152c63;
+  --color-brand-950: #0a1b45;
+
+  /* The gold of the tassel, used sparingly as a warm counterpoint. */
+  --color-accent-400: #f2c45a;
+  --color-accent-500: #e8a92a;
 
   /*
    * Motion tokens. Short and eased. Every keyframe multiplies its movement (sliding, scaling,
@@ -119,6 +123,11 @@
     scroll-padding-top: 5rem;
   }
 
+  /* The layout's backdrop sits at z-index -1; this keeps it above the page colour. */
+  body {
+    isolation: isolate;
+  }
+
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -130,6 +139,61 @@
     border-radius: 0.25rem;
     /* The ring eases outwards instead of snapping on. */
     transition: outline-offset 120ms ease-out;
+  }
+}
+
+/* ---------- Backdrop ----------
+ * A fixed, page-wide layer behind everything: soft blue light falling from the top with a trace
+ * of gold, and a fine dot grid that fades out towards the bottom. Gradients only (no blur
+ * filters), so it costs next to nothing to paint. The glow drifts very slowly when motion is
+ * allowed, and stays put otherwise.
+ */
+.site-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.site-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: -10% -10% 0;
+  background:
+    radial-gradient(60rem 34rem at 50% -6rem, rgb(52 105 220 / 0.17), transparent 70%),
+    radial-gradient(34rem 26rem at 90% 6%, rgb(232 169 42 / 0.09), transparent 70%),
+    radial-gradient(42rem 30rem at 2% 32%, rgb(91 141 239 / 0.1), transparent 70%);
+  animation: backdrop-drift 32s ease-in-out infinite alternate;
+}
+
+.site-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgb(21 44 99 / 0.16) 1px, transparent 1.3px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 10%, transparent 75%);
+}
+
+@keyframes backdrop-drift {
+  from {
+    transform: translate3d(calc(-2% * var(--motion, 1)), 0, 0);
+  }
+  to {
+    transform: translate3d(calc(2% * var(--motion, 1)), calc(3% * var(--motion, 1)), 0);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-backdrop::before {
+    background:
+      radial-gradient(60rem 34rem at 50% -6rem, rgb(52 105 220 / 0.28), transparent 70%),
+      radial-gradient(34rem 26rem at 90% 6%, rgb(232 169 42 / 0.07), transparent 70%),
+      radial-gradient(42rem 30rem at 2% 32%, rgb(91 141 239 / 0.14), transparent 70%);
+  }
+  .site-backdrop::after {
+    background-image: radial-gradient(circle, rgb(255 255 255 / 0.09) 1px, transparent 1.3px);
   }
 }
 
@@ -333,13 +397,13 @@
 }
 
 /* ---------- Hover effects ----------
- * The mood: calm, clinical, a little alive. Teal glow, a line that draws in like a trace on a
+ * The mood: calm, clinical, a little alive. Blue glow, a line that draws in like a trace on a
  * monitor, and a heartbeat on the logo. None of the main feedback depends on movement, so it
  * is fully visible with reduced motion. Anything that translates or scales is added only when
  * motion is allowed.
  */
 
-/* Cards and tiles: a teal line draws along the top edge while a soft halo glows. */
+/* Cards and tiles: a blue line draws along the top edge while a soft halo glows. */
 .accent-card {
   background-image: linear-gradient(90deg, var(--color-brand-600), var(--color-brand-300));
   background-repeat: no-repeat;
@@ -446,7 +510,7 @@
   }
 }
 
-/* Navigation links: a teal underline grows out from the middle. */
+/* Navigation links: a blue underline grows out from the middle. */
 .nav-link {
   background-image: linear-gradient(var(--color-brand-500), var(--color-brand-500));
   background-repeat: no-repeat;

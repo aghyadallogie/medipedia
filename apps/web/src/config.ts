@@ -36,7 +36,10 @@ export function createConfig({ schemaName, push = false }: ConfigOptions = {}) {
     admin: {
       user: Users.slug,
       importMap: { baseDir: path.resolve(dirname) },
-      meta: { titleSuffix: ' · Medipedia' },
+      meta: {
+        titleSuffix: ' · Medipedia',
+        icons: [{ rel: 'icon', type: 'image/png', url: '/icon-192.png' }],
+      },
     },
     // Payload's REST API lives under /api/cms so it never collides with the App API at /api/v1 (AGENTS.md §6).
     routes: { api: '/api/cms' },
