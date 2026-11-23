@@ -121,10 +121,18 @@
   margin-block: 2rem;
 }
 
+/* Wide tables and code scroll sideways inside the text column instead of widening the page. */
 .rich-text table {
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   font-size: 0.95em;
+}
+
+.rich-text pre {
+  max-width: 100%;
+  overflow-x: auto;
 }
 .rich-text th,
 .rich-text td {

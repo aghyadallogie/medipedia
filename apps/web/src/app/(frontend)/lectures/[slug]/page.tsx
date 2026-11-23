@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 
 import { JsonLd } from '@/components/json-ld'
 import { RichText } from '@/components/rich-text'
-import { Breadcrumbs, Container } from '@/components/site-chrome'
+import { Breadcrumbs, Container, DetailTitle } from '@/components/site-chrome'
 import { formatDate } from '@/lib/format'
 import { breadcrumbJsonLd, lectureJsonLd, pageMetadata, plainText } from '@/lib/seo'
 import { assertCanRead } from '@/server/access-tier'
@@ -55,11 +55,11 @@ export default async function LecturePage({ params }: Props) {
               ))}
             </p>
           ) : null}
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            {lecture.title}
-          </h1>
+          <DetailTitle>{lecture.title}</DetailTitle>
           {lecture.summary ? (
-            <p className="text-lg text-slate-600 dark:text-slate-300">{lecture.summary}</p>
+            <p className="text-base text-slate-600 sm:text-lg dark:text-slate-300">
+              {lecture.summary}
+            </p>
           ) : null}
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {lecture.lastReviewedAt ? 'Last reviewed' : 'Updated'}{' '}

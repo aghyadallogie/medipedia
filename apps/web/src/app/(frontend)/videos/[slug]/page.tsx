@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 
 import { JsonLd } from '@/components/json-ld'
 import { RichText } from '@/components/rich-text'
-import { Breadcrumbs, Container } from '@/components/site-chrome'
+import { Breadcrumbs, Container, DetailTitle } from '@/components/site-chrome'
 import { formatDate, formatDuration } from '@/lib/format'
 import { breadcrumbJsonLd, pageMetadata, plainText, videoJsonLd } from '@/lib/seo'
 import { assertCanRead } from '@/server/access-tier'
@@ -47,9 +47,7 @@ export default async function VideoPage({ params }: Props) {
               {video.domain.name}
             </Link>
           ) : null}
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            {video.title}
-          </h1>
+          <DetailTitle>{video.title}</DetailTitle>
         </header>
 
         {/* Only YouTube and Vimeo embeds are ever stored (see the Videos collection). */}

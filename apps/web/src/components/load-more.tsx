@@ -86,7 +86,7 @@ export function LoadMore({ kind, initialCursor, domain, pageSize }: Props) {
             type="button"
             onClick={loadNext}
             disabled={status === 'loading'}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 sm:w-auto sm:py-2 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             {status === 'loading' ? 'Loading…' : 'Load more'}
           </button>

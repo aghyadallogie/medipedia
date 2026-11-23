@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { RelevanceDots } from '@/components/cards'
 import { JsonLd } from '@/components/json-ld'
 import { RichText } from '@/components/rich-text'
-import { Breadcrumbs, Container } from '@/components/site-chrome'
+import { Breadcrumbs, Container, DetailTitle } from '@/components/site-chrome'
 import { breadcrumbJsonLd, pageMetadata, paperJsonLd, plainText } from '@/lib/seo'
 import { assertCanRead } from '@/server/access-tier'
 import { getPaper } from '@/server/public-queries'
@@ -28,13 +28,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   })
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string
+  /** Spans both columns. For values that can be long: authors, DOIs, links. */
+  wide?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className={`flex min-w-0 flex-col gap-0.5 ${wide ? 'col-span-2' : ''}`}>
       <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </dt>
-      <dd className="text-sm">{children}</dd>
+      <dd className="text-sm break-words">{children}</dd>
     </div>
   )
 }
@@ -59,12 +68,13 @@ export default async function PaperPage({ params }: Props) {
               {paper.domain.name}
             </Link>
           ) : null}
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            {paper.title}
-          </h1>
+          <DetailTitle>{paper.title}</DetailTitle>
 
-          <dl className="grid gap-x-8 gap-y-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-800">
-            <Fact label="Authors">{paper.authors.join(', ')}</Fact>
+          {/* Two columns on every screen: short facts pair up, long ones span both. */}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-slate-200 p-4 sm:gap-x-8 dark:border-slate-800">
+            <Fact label="Authors" wide>
+              {paper.authors.join(', ')}
+            </Fact>
             {paper.journal ? <Fact label="Journal">{paper.journal}</Fact> : null}
             {paper.year ? <Fact label="Year">{paper.year}</Fact> : null}
             {paper.clinicalRelevance ? (
@@ -79,7 +89,7 @@ export default async function PaperPage({ params }: Props) {
               <Fact label="Lead author h-index">{paper.leadAuthorHIndex}</Fact>
             ) : null}
             {paper.doi ? (
-              <Fact label="DOI">
+              <Fact label="DOI" wide>
                 <a
                   href={`https://doi.org/${paper.doi}`}
                   target="_blank"
@@ -91,7 +101,7 @@ export default async function PaperPage({ params }: Props) {
               </Fact>
             ) : null}
             {paper.pubmedUrl ? (
-              <Fact label="PubMed">
+              <Fact label="PubMed" wide>
                 <a
                   href={paper.pubmedUrl}
                   target="_blank"

@@ -20,21 +20,23 @@ export default async function HomePage() {
 
   return (
     <Container>
-      <section className="space-y-6 pb-4 pt-16 sm:pt-24">
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+      <section className="space-y-5 pb-2 pt-10 sm:space-y-6 sm:pb-4 sm:pt-24">
+        <h1 className="max-w-3xl text-[2rem] leading-tight font-semibold tracking-tight text-balance sm:text-5xl">
           Learn medicine from sources you can check.
         </h1>
-        <p className="max-w-2xl text-lg text-slate-600 dark:text-slate-300">{SITE_DESCRIPTION}</p>
+        <p className="max-w-2xl text-base text-slate-600 sm:text-lg dark:text-slate-300">
+          {SITE_DESCRIPTION}
+        </p>
         <div className="flex flex-wrap gap-3">
           <Link
             href="/lectures"
-            className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+            className="rounded-lg bg-brand-600 px-4 py-3 text-sm font-medium text-white hover:bg-brand-700 sm:py-2.5"
           >
             Browse lectures
           </Link>
           <Link
             href="/domains"
-            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium hover:bg-slate-50 sm:py-2.5 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             Explore by domain
           </Link>

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 
 import { JsonLd } from '@/components/json-ld'
@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   openGraph: { siteName: SITE_NAME, type: 'website' },
+}
+
+// Colours the browser chrome on phones and lets native controls and scrollbars follow dark mode.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#020617' },
+  ],
+  colorScheme: 'light dark',
 }
 
 export default function FrontendLayout({ children }: { children: ReactNode }) {
