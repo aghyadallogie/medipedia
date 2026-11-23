@@ -219,6 +219,7 @@ Written by the API, never edited by users.
 - `isFirstAttempt` (boolean — true for the user's first answer to this question; analytics accuracy uses first attempts)
 - `domain` (relation → Domains — denormalized for analytics; the top-level domain is resolved at query time)
 - `topic` (relation → Topics — denormalized)
+- `firstAttemptKey` (hidden, unique, nullable text: `<user>:<question>` on a first attempt, null otherwise. The unique constraint is what makes two simultaneous first submissions record one first attempt and one repeat.)
 - `answeredAt` (date, indexed)
 - Composite index on `(user, question)` and `(user, answeredAt)`.
 - Access: user reads own; admins read all (aggregate-only for analytics in UI). Deleted with the user (cascade).
@@ -306,6 +307,9 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 - Public: `GET /domains`, `GET /domains/:slug`, `GET /topics`, `GET /lectures`, `GET /lectures/:slug`, `GET /papers`, `GET /papers/:slug`, `GET /videos`, `GET /videos/:slug`, `GET /flashcards?topic=&domain=`, `GET /flashcards/:id/back`, `GET /questions/stats` (public counts per domain/topic only).
 - Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `POST /auth/verify-email`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/google`, `GET /auth/google/callback`, `POST /auth/google/mobile`, and `GET /auth/refresh?next=` (browser page navigations only, see §5; not part of the mobile contract).
 - Authenticated: `GET /me`, `PATCH /me`, `DELETE /me`, `GET /me/analytics`, `GET /me/questions/next?domains=&topics=&filter=unused|incorrect|all`, `GET /questions/:id`, `POST /questions/:id/answer`.
+  - `next` takes comma-separated slugs. A domain includes its sub-domains; `domains` and `topics` together must both match; an unknown slug matches nothing. `filter` defaults to `unused` (never answered); `incorrect` means the latest answer to the question was wrong. It returns `{ question, remaining }` with a random matching question, or `question: null`. The pool is chosen in memory from ids only, which is fine at the target scale (§15).
+  - `POST .../answer` takes `{ selectedLabel }`, returns the verdict, every explanation, the citations and `isFirstAttempt`, and writes an `AnswerEvent`. A label the question does not have is a `400`. A draft, unknown or malformed question id is a `404`.
+  - `GET /me/analytics` returns `totals` (all attempts, distinct questions answered, correct, accuracy or null), `byDomain` (top-level domains with sub-domains rolled in, first attempts only) and `weakest` (up to three lowest-accuracy domains with at least 10 first attempts).
 
 **Answer submission flow (critical):**
 `GET /questions/:id` and `GET /me/questions/next` must **never** include `choices[].isCorrect`, `choices[].explanation` or `overallExplanation`. Only `POST /questions/:id/answer` returns the verdict + explanations, and it also writes an `AnswerEvent`. Do not leak correctness in any GET payload, even to authenticated users (prevents cheating via network inspection). An integration test asserts this for every GET route.
@@ -507,6 +511,7 @@ Each phase is shippable and tested before moving on.
 - `GET /api/v1/me/analytics`: per-domain accuracy (first attempts, rolled up to top-level domains), counts answered, weakest domains (minimum 10 answered).
 - Web: tutor-mode practice UI (choose domains/topics and filter, answer, see explanations, next) and an analytics page.
 - **Exit:** integration test proves no GET route leaks correctness.
+- **Done (API):** all four endpoints, the shared schemas and the `packages/api-client` methods (`questions.get`, `questions.answer`, `me.nextQuestion`, `me.analytics`), covered by unit tests and by `questions-api.int.test.ts` against Postgres (32 tests, including the no-leak sweep as learner and admin, a race on the first attempt, filters, and analytics roll-up). **Not built yet:** the practice and analytics web pages.
 
 ### Phase 6 — Flashcards (web UI)
 

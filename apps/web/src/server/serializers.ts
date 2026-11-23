@@ -25,11 +25,11 @@ import { idOf } from '@/server/ids'
 import { lexicalToRichText } from '@/server/richtext'
 
 /** The document behind a relationship, or null when it was not populated. */
-function populated<T extends object>(value: string | T | null | undefined): T | null {
+export function populated<T extends object>(value: string | T | null | undefined): T | null {
   return typeof value === 'object' && value !== null ? value : null
 }
 
-function require_<T>(value: T | null, what: string): T {
+export function require_<T>(value: T | null, what: string): T {
   if (value === null) {
     throw new Error(`Cannot serialize: ${what} is not populated. Query with depth >= 1.`)
   }

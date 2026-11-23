@@ -149,6 +149,8 @@ export const AnswerResultSchema = z.object({
   selectedLabel: ChoiceLabelSchema,
   isCorrect: z.boolean(),
   correctLabel: ChoiceLabelSchema,
+  /** Only a learner's first answer to a question counts towards accuracy. */
+  isFirstAttempt: z.boolean(),
   choices: z
     .array(
       z.object({

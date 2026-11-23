@@ -1,5 +1,7 @@
 import {
   AckResponseSchema,
+  AnalyticsResponseSchema,
+  AnswerResponseSchema,
   ApiErrorBodySchema,
   DomainListResponseSchema,
   DomainResponseSchema,
@@ -9,7 +11,9 @@ import {
   LectureListResponseSchema,
   LectureResponseSchema,
   PaperListResponseSchema,
+  NextQuestionResponseSchema,
   PaperResponseSchema,
+  QuestionResponseSchema,
   QuestionStatsResponseSchema,
   RefreshSessionResponseSchema,
   SessionResponseSchema,
@@ -17,6 +21,9 @@ import {
   UserResponseSchema,
   VideoListResponseSchema,
   VideoResponseSchema,
+  type Analytics,
+  type AnswerResult,
+  type ChoiceLabel,
   type ClientKind,
   type Domain,
   type Flashcard,
@@ -26,8 +33,11 @@ import {
   type Lecture,
   type LectureSummary,
   type LoginBody,
+  type NextQuestion,
+  type NextQuestionQuery,
   type Paper,
   type PaperSummary,
+  type Question,
   type QuestionStats,
   type RefreshSession,
   type RegisterBody,
@@ -67,6 +77,14 @@ export type Page<T> = { items: T[]; nextCursor: string | null }
 export type ListOptions = { cursor?: string; limit?: number }
 export type DomainFilterOptions = ListOptions & { domain?: string }
 export type FlashcardListOptions = DomainFilterOptions & { topic?: string; client?: ClientKind }
+
+/** What to practise: slugs of domains (sub-domains included) and topics, and which questions. */
+export type NextQuestionOptions = {
+  domains?: readonly string[]
+  topics?: readonly string[]
+  /** Defaults to 'unused' on the server. */
+  filter?: NextQuestionQuery['filter']
+}
 
 /** Sign-in input. `client` defaults to 'web' on the server. */
 export type LoginInput = Omit<LoginBody, 'client'> & { client?: ClientKind }
@@ -285,12 +303,33 @@ export function createApiClient(options: ApiClientOptions) {
       delete: async (body: { password?: string } = {}): Promise<void> => {
         await send('DELETE', '/me', AckResponseSchema, { body })
       },
+      /**
+       * A random question for tutor mode, without its answer key. `question` is null when nothing
+       * matches or everything has been answered; `remaining` counts what matches.
+       */
+      nextQuestion: async (options: NextQuestionOptions = {}): Promise<NextQuestion> =>
+        (
+          await get('/me/questions/next', NextQuestionResponseSchema, {
+            domains: options.domains?.join(','),
+            topics: options.topics?.join(','),
+            filter: options.filter,
+          })
+        ).data,
+      /** Your accuracy by domain, from first attempts only. */
+      analytics: async (): Promise<Analytics> =>
+        (await get('/me/analytics', AnalyticsResponseSchema)).data,
     },
 
     questions: {
       /** Counts per domain and topic. The questions themselves need an account. */
       stats: async (): Promise<QuestionStats> =>
         (await get('/questions/stats', QuestionStatsResponseSchema)).data,
+      /** One question without its answer key. Needs an account. */
+      get: async (id: string): Promise<Question> =>
+        (await get(`/questions/${slug(id)}`, QuestionResponseSchema)).data,
+      /** Submits an answer and gets the verdict with every explanation. */
+      answer: async (id: string, selectedLabel: ChoiceLabel): Promise<AnswerResult> =>
+        (await post(`/questions/${slug(id)}/answer`, AnswerResponseSchema, { selectedLabel })).data,
     },
   }
 }
