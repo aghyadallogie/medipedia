@@ -15,6 +15,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
 import { TOKEN_TTL_SECONDS, type TokenAudience } from '@medipedia/shared'
+import type { PostgresAdapter } from '@payloadcms/db-postgres'
+import { and, eq, isNull } from '@payloadcms/db-postgres/drizzle'
 import { commitTransaction, createLocalReq, initTransaction, killTransaction } from 'payload'
 import type { Payload, PayloadRequest } from 'payload'
 
@@ -196,8 +198,36 @@ async function resolveRotated(
 }
 
 /**
- * Exchanges a refresh token for its successor. The old token is revoked with a conditional update
- * (`revokedAt` must still be empty), so of two simultaneous requests exactly one rotates it.
+ * Marks a token as rotated, but only if nobody has revoked it yet, and says whether this call did.
+ * It is ONE `UPDATE ... WHERE revoked_at IS NULL` inside the caller's transaction: a second
+ * transaction touching the same row waits for the first to finish, then re-checks the condition
+ * and updates nothing. Payload's own `update({ where })` cannot do this, because it first reads
+ * the matching rows and then updates each by id, so two requests can both read the token as live.
+ */
+async function claimForRotation(
+  payload: Payload,
+  req: PayloadRequest,
+  tokenId: string,
+  stamp: string,
+): Promise<boolean> {
+  const adapter = payload.db as unknown as PostgresAdapter
+  const db =
+    (req.transactionID ? adapter.sessions[await req.transactionID]?.db : null) ?? adapter.drizzle
+  // The table object knows its schema, so this also works when Payload is built against a
+  // throwaway schema (the integration tests), which raw unqualified SQL would miss.
+  const table = adapter.tables['refresh_tokens']
+  if (!table) throw new Error('The refresh_tokens table is not in the Payload schema')
+  const claimed = await db
+    .update(table)
+    .set({ revokedAt: stamp, rotatedAt: stamp })
+    .where(and(eq(table['id'], tokenId), isNull(table['revokedAt'])))
+    .returning({ id: table['id'] })
+  return claimed.length > 0
+}
+
+/**
+ * Exchanges a refresh token for its successor. The old token is claimed with an atomic conditional
+ * update (see `claimForRotation`), so of two simultaneous requests exactly one rotates it.
  */
 export async function rotateRefreshToken(
   payload: Payload,
@@ -224,14 +254,7 @@ export async function rotateRefreshToken(
   const ownsTransaction = await initTransaction(req)
   try {
     const stamp = now.toISOString()
-    const { docs } = await payload.update({
-      collection: 'refresh-tokens',
-      where: { and: [{ id: { equals: token.id } }, { revokedAt: { exists: false } }] },
-      data: { revokedAt: stamp, rotatedAt: stamp },
-      overrideAccess: true,
-      req,
-    })
-    if (docs.length === 0) {
+    if (!(await claimForRotation(payload, req, token.id, stamp))) {
       // Lost the race. Nothing to commit.
       if (ownsTransaction) await killTransaction(req)
       return resolveRotated(payload, token, now)

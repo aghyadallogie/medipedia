@@ -18,6 +18,7 @@ import {
   SlugSchema,
   TopicSchema,
   VideoSchema,
+  VideoSummarySchema,
 } from './content'
 import { ClientKindSchema } from './enums'
 
@@ -65,7 +66,7 @@ export const LectureResponseSchema = dataResponse(LectureSchema)
 export const PaperListResponseSchema = paginatedResponse(PaperSummarySchema)
 export const PaperResponseSchema = dataResponse(PaperSchema)
 
-export const VideoListResponseSchema = paginatedResponse(VideoSchema)
+export const VideoListResponseSchema = paginatedResponse(VideoSummarySchema)
 export const VideoResponseSchema = dataResponse(VideoSchema)
 
 export const FlashcardListResponseSchema = paginatedResponse(FlashcardSchema)

@@ -36,6 +36,7 @@ import {
   type Topic,
   type User,
   type Video,
+  type VideoSummary,
 } from '@medipedia/shared'
 
 import { ApiClientError } from './errors'
@@ -211,7 +212,7 @@ export function createApiClient(options: ApiClientOptions) {
     },
 
     videos: {
-      list: (query: DomainFilterOptions = {}): Promise<Page<Video>> =>
+      list: (query: DomainFilterOptions = {}): Promise<Page<VideoSummary>> =>
         page('/videos', VideoListResponseSchema, query),
       get: async (videoSlug: string): Promise<Video> =>
         (await get(`/videos/${slug(videoSlug)}`, VideoResponseSchema)).data,

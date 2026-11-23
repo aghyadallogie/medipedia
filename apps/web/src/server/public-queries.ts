@@ -20,6 +20,7 @@ import {
   type QuestionStats,
   type Topic as TopicDto,
   type Video as VideoDto,
+  type VideoSummary,
 } from '@medipedia/shared'
 import { getPayload, type DataFromCollectionSlug, type Where } from 'payload'
 
@@ -47,6 +48,7 @@ import {
   toPaperSummary,
   toTopic,
   toVideo,
+  toVideoSummary,
 } from '@/server/serializers'
 
 export type { Page } from '@/server/cursor'
@@ -304,22 +306,41 @@ export async function getPaper(slug: string): Promise<PaperDto | null> {
 
 // ---------- videos ----------
 
+const videoListSelect = {
+  title: true,
+  slug: true,
+  provider: true,
+  providerVideoId: true,
+  embedUrl: true,
+  thumbnail: true,
+  domain: true,
+  durationSeconds: true,
+  reviewedAt: true,
+  accessTier: true,
+  updatedAt: true,
+} as const
+
 const videosQuery = cachedQuery(
   'videos:list',
-  async (domain: string | null, cursor: string | null, limit: number): Promise<Page<VideoDto>> => {
+  async (
+    domain: string | null,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<VideoSummary>> => {
     const page = await findPage({
       collection: 'videos',
       where: domain ? [{ 'domain.slug': { equals: domain } }] : [],
       cursor,
       limit,
-      depth: 2,
+      depth: 1,
+      select: videoListSelect,
     })
-    return { items: page.items.map(toVideo), nextCursor: page.nextCursor }
+    return { items: page.items.map(toVideoSummary), nextCursor: page.nextCursor }
   },
   (domain) => listTags('videos', domain),
 )
 
-export function listVideos(query: ListArgs & { domain?: string }): Promise<Page<VideoDto>> {
+export function listVideos(query: ListArgs & { domain?: string }): Promise<Page<VideoSummary>> {
   assertCursor(query.cursor, SORT.videos)
   return videosQuery(query.domain ?? null, query.cursor ?? null, query.limit)
 }
