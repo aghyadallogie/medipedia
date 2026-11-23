@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { Practice } from '@/components/practice/practice'
@@ -29,6 +30,15 @@ export default async function PracticePage() {
         title="Practice questions"
         description="Exam-style vignettes. Answer one, then read why every choice is right or wrong."
       />
+      <p className="-mt-2 pb-5 text-sm">
+        <Link
+          href="/practice/analytics"
+          prefetch={false}
+          className="text-brand-700 underline underline-offset-2 dark:text-brand-300"
+        >
+          See your performance by domain →
+        </Link>
+      </p>
       <Practice options={buildPracticeOptions(domains, stats)} />
     </Container>
   )

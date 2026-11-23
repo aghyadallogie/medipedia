@@ -60,6 +60,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Add the analytics page here when it is built (Phase 5).
+  // `/practice/:path*` also covers `/practice/analytics`.
   matcher: ['/account/:path*', '/practice/:path*', '/sign-in', '/sign-up', '/forgot-password'],
 }
