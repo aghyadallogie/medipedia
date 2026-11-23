@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-type Item = { href: string; label: string }
+type Item = { href: string; label: string; prefetch?: false }
 
 /** Longer than the exit animation. Only used if `animationend` never fires. */
 const EXIT_FALLBACK_MS = 400
@@ -103,6 +103,7 @@ export function MobileNav({ items }: { items: readonly Item[] }) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={item.prefetch}
                 onClick={close}
                 // The links rise in one after another while the panel opens.
                 style={open ? { animationDelay: `${60 + index * 45}ms` } : undefined}

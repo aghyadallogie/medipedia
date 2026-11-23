@@ -8,7 +8,7 @@ const SECRET = 's'.repeat(40)
 
 vi.mock('@/env', () => ({ env: { JWT_SECRET: 's'.repeat(40) } }))
 
-const { proxy } = await import('./proxy')
+const { proxy, config } = await import('./proxy')
 
 async function visit(path: string, cookies: Record<string, string> = {}) {
   const cookie = Object.entries(cookies)
@@ -78,5 +78,13 @@ describe('proxy: protected pages', () => {
     expect(status).toBe(307)
     expect(location?.pathname).toBe('/api/v1/auth/refresh')
     expect(location?.searchParams.get('next')).toBe('/account')
+  })
+
+  it('keeps the practice questions behind a login too, and renews the session back to them', async () => {
+    expect(config.matcher).toContain('/practice/:path*')
+    const { status, location } = await visit('/practice')
+    expect(status).toBe(307)
+    expect(location?.pathname).toBe('/api/v1/auth/refresh')
+    expect(location?.searchParams.get('next')).toBe('/practice')
   })
 })

@@ -15,7 +15,7 @@ const HOME_WHEN_SIGNED_IN = '/account'
  * Two jobs, both decided from the access token's signature (not the database; pages and API routes
  * still load the user themselves):
  *
- * - Pages that need a signed-in user (`/account`). Visitors whose access token is missing or expired
+ * - Pages that need a signed-in user (`/account`, `/practice`). Visitors whose access token is missing or expired
  *   (they last 15 minutes) are sent through the refresh endpoint, which renews the session and
  *   brings them straight back, or sends them to the sign-in page when there is no session to renew.
  * - Guest pages (`/sign-in`, `/sign-up`, `/forgot-password`). A signed-in visitor is sent on to the
@@ -60,6 +60,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Add the question bank and analytics pages here when they are built (Phase 5).
-  matcher: ['/account/:path*', '/sign-in', '/sign-up', '/forgot-password'],
+  // Add the analytics page here when it is built (Phase 5).
+  matcher: ['/account/:path*', '/practice/:path*', '/sign-in', '/sign-up', '/forgot-password'],
 }

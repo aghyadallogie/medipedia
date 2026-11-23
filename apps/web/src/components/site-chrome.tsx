@@ -6,13 +6,18 @@ import { AuthNav } from '@/components/auth/auth-nav'
 import { MobileNav } from '@/components/mobile-nav'
 import { SITE_NAME } from '@/lib/seo'
 
-const NAV = [
+type NavItem = { href: string; label: string; prefetch?: false }
+
+const NAV: readonly NavItem[] = [
   { href: '/lectures', label: 'Lectures' },
   { href: '/flashcards', label: 'Flashcards' },
+  // Signed-out visitors are redirected through the refresh endpoint, which must not run as a
+  // background prefetch (see AuthNav).
+  { href: '/practice', label: 'Practice', prefetch: false },
   { href: '/papers', label: 'Papers' },
   { href: '/videos', label: 'Videos' },
   { href: '/domains', label: 'Domains' },
-] as const
+]
 
 export function SiteHeader() {
   return (
@@ -34,6 +39,7 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={item.prefetch}
               className="nav-link rounded-md px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               {item.label}
