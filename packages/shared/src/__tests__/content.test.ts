@@ -85,6 +85,7 @@ describe('AnswerResultSchema', () => {
         selectedLabel: 'A',
         isCorrect: false,
         correctLabel: 'B',
+        isFirstAttempt: true,
         choices: [
           { label: 'A', isCorrect: false, explanation: { html: '<p>no</p>' } },
           { label: 'B', isCorrect: true, explanation: { html: '<p>yes</p>' } },

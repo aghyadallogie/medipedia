@@ -2,7 +2,7 @@ import { CHOICE_LABELS } from '@medipedia/shared'
 import type { CollectionConfig } from 'payload'
 
 import { toOptions } from '@/fields/shared'
-import { adminOrOwnRows, isAdmin, nobody } from '@/server/access'
+import { adminOrOwnRows, isAdmin, nobody, nobodyFieldLevel } from '@/server/access'
 
 /**
  * One row per answer a learner submits. Written only by the answer endpoint through the Local
@@ -42,6 +42,16 @@ export const AnswerEvents: CollectionConfig = {
       admin: {
         description: "True for the user's first answer to this question. Accuracy uses these.",
       },
+    },
+    {
+      // `<user>:<question>` on a learner's first answer and null on every later one. The unique
+      // constraint (nulls do not collide) is what stops two simultaneous submissions from both
+      // counting as the first attempt.
+      name: 'firstAttemptKey',
+      type: 'text',
+      unique: true,
+      access: { read: nobodyFieldLevel },
+      admin: { hidden: true, readOnly: true },
     },
     { name: 'domain', type: 'relationship', relationTo: 'domains', index: true },
     { name: 'topic', type: 'relationship', relationTo: 'topics', index: true },

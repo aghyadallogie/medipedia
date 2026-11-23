@@ -578,6 +578,7 @@ export interface AnswerEvent {
    * True for the user's first answer to this question. Accuracy uses these.
    */
   isFirstAttempt: boolean;
+  firstAttemptKey?: string | null;
   domain?: (string | null) | Domain;
   topic?: (string | null) | Topic;
   answeredAt: string;
@@ -943,6 +944,7 @@ export interface AnswerEventsSelect<T extends boolean = true> {
   selectedLabel?: T;
   isCorrect?: T;
   isFirstAttempt?: T;
+  firstAttemptKey?: T;
   domain?: T;
   topic?: T;
   answeredAt?: T;
