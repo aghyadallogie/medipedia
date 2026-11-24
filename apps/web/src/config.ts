@@ -82,8 +82,12 @@ export function createConfig({ schemaName, push = false }: ConfigOptions = {}) {
     upload: { limits: { fileSize: 4_000_000 } },
     plugins: [
       // Without a token (local development) uploads stay on disk under apps/web/media.
+      // `alwaysInsertFields` adds the plugin's hidden columns (`_objectKey`, `prefix`) to `media`
+      // even then, so the schema, and therefore the migrations, are the same with or without a
+      // token. Without it, migrations made locally lack the columns and uploads fail on Vercel.
       vercelBlobStorage({
         enabled: env.BLOB_READ_WRITE_TOKEN !== undefined,
+        alwaysInsertFields: true,
         collections: { media: true },
         token: env.BLOB_READ_WRITE_TOKEN ?? '',
       }),
