@@ -11,12 +11,14 @@ import {
 import { refreshSession } from '@/server/auth/service'
 import { ApiError, CACHE_CONTROL, errorResponse, handler } from '@/server/http'
 import { getClient } from '@/server/payload'
+import { limitByIp, RATE_RULES } from '@/server/rate-limit'
 
 /**
  * Exchanges a refresh token for a new access token and a new refresh token. Mobile sends the token
  * in the body; the web sends its httpOnly cookie (scoped to this path) and gets cookies back.
  */
 export const POST = handler(async (request: Request) => {
+  await limitByIp(request, RATE_RULES.refresh)
   const body = await readOptionalJson(request, RefreshBodySchema)
   const audience = body.refreshToken ? 'mobile' : 'web'
   const raw = body.refreshToken ?? parseCookies(request.headers.get('cookie'))[AUTH_COOKIES.refresh]
@@ -55,6 +57,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!raw) return redirect(signIn)
 
   try {
+    await limitByIp(request, RATE_RULES.refresh)
     const session = await refreshSession(await getClient(), raw, 'web')
     const { headers } = refreshResponse(session, 'web')
     return redirect(next, headers.getSetCookie())
@@ -62,6 +65,8 @@ export async function GET(request: Request): Promise<Response> {
     if (error instanceof ApiError && error.code === 'unauthorized') {
       return redirect(signIn, signedOutCookies())
     }
+    // Too many renewals. This is a page navigation, so land on the sign-in page, keeping the cookies.
+    if (error instanceof ApiError && error.code === 'rate_limited') return redirect(signIn)
     console.error('Session refresh failed', error)
     return redirect(signIn)
   }

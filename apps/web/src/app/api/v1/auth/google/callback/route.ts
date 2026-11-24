@@ -13,6 +13,7 @@ import { audienceFor, isSecureSite, sessionResponse, withCookies } from '@/serve
 import { signInWithGoogle, startSession } from '@/server/auth/service'
 import { ApiError, CACHE_CONTROL } from '@/server/http'
 import { getClient } from '@/server/payload'
+import { limitByIp, RATE_RULES } from '@/server/rate-limit'
 
 /** Back to the sign-in page with a reason it can show. Never reveals more than that. */
 function failure(reason: string, cookies: string[]): Response {
@@ -43,6 +44,7 @@ export async function GET(request: Request): Promise<Response> {
   })
 
   try {
+    await limitByIp(request, RATE_RULES.google)
     const config = requireGoogleConfig()
     const params = new URL(request.url).searchParams
     const flow = decodeFlowState(parseCookies(request.headers.get('cookie'))[GOOGLE_COOKIE])
@@ -78,6 +80,9 @@ export async function GET(request: Request): Promise<Response> {
   } catch (error) {
     if (error instanceof ApiError && error.code === 'not_found') {
       return failure('google_unavailable', [clearFlowCookie])
+    }
+    if (error instanceof ApiError && error.code === 'rate_limited') {
+      return failure('rate_limited', [clearFlowCookie])
     }
     console.error('Google sign-in failed', error)
     return failure('google', [clearFlowCookie])

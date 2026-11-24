@@ -10,7 +10,7 @@ import {
   QuestionResponseSchema,
 } from '@medipedia/shared'
 import type { Payload } from 'payload'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn(), unstable_cache: (fn: unknown) => fn }))
 
@@ -22,6 +22,7 @@ import { GET as questionGET } from '@/app/api/v1/questions/[id]/route'
 import { GET as statsGET } from '@/app/api/v1/questions/stats/route'
 import type { Domain, Question, Topic } from '@/payload-types'
 import { paragraphsToLexical } from '@/server/lexical'
+import { rateLimitTesting } from '@/server/rate-limit'
 
 import { creator, PASSWORD, startHarness, type Harness } from './harness'
 
@@ -613,5 +614,26 @@ describe('answer rows cannot be forged through Payload', () => {
       user: { id: adaId, collection: 'users', role: 'learner' },
     })
     for (const doc of docs) expect(doc).not.toHaveProperty('firstAttemptKey')
+  })
+})
+
+describe('rate limits', () => {
+  afterEach(() => rateLimitTesting.setEnabled(false))
+
+  it('refuses the 61st answer in a minute from one learner, but not another learner', async () => {
+    const { tokens } = await newLearner('Rapid')
+    rateLimitTesting.reset()
+    rateLimitTesting.setEnabled(true)
+
+    for (let i = 0; i < 60; i++) {
+      expect((await answer(acsQuestion.id, 'B', tokens)).status).toBe(200)
+    }
+    const blocked = await answer(acsQuestion.id, 'B', tokens)
+    expect(blocked.status).toBe(429)
+    expect(blocked.json.error.code).toBe('rate_limited')
+    expect(blocked.cacheControl).toBe('private, no-store')
+
+    const other = (await newLearner('Calm')).tokens
+    expect((await answer(acsQuestion.id, 'B', other)).status).toBe(200)
   })
 })

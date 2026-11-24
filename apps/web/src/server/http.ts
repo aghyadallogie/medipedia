@@ -50,6 +50,13 @@ export function okList<T>(
   )
 }
 
+/** The wait carried by a `rate_limited` error (see `server/rate-limit.ts`), for `Retry-After`. */
+function retryAfterSeconds(error: ApiError): number | null {
+  if (error.code !== 'rate_limited') return null
+  const seconds = (error.details as { retryAfterSeconds?: unknown } | undefined)?.retryAfterSeconds
+  return typeof seconds === 'number' && Number.isFinite(seconds) ? seconds : null
+}
+
 export function errorResponse(error: unknown): Response {
   const apiError =
     error instanceof ApiError
@@ -70,10 +77,11 @@ export function errorResponse(error: unknown): Response {
     },
   }
 
-  return Response.json(body, {
-    status: apiError.status,
-    headers: { 'Cache-Control': CACHE_CONTROL.private },
-  })
+  const headers = new Headers({ 'Cache-Control': CACHE_CONTROL.private })
+  const retryAfter = retryAfterSeconds(apiError)
+  if (retryAfter !== null) headers.set('Retry-After', String(retryAfter))
+
+  return Response.json(body, { status: apiError.status, headers })
 }
 
 /** Wraps a route handler so thrown ApiErrors and ZodErrors become typed error responses. */

@@ -5,6 +5,7 @@ import { readJson, sessionResponse } from '@/server/auth/http'
 import { signInWithGoogle, startSession } from '@/server/auth/service'
 import { ApiError, handler } from '@/server/http'
 import { getClient } from '@/server/payload'
+import { limitByIp, RATE_RULES } from '@/server/rate-limit'
 
 /**
  * The native apps sign in with Google themselves and send the ID token here. It is verified the
@@ -12,6 +13,7 @@ import { getClient } from '@/server/payload'
  * and the native client IDs in `GOOGLE_MOBILE_CLIENT_IDS`. Returns tokens in the body.
  */
 export const POST = handler(async (request: Request) => {
+  await limitByIp(request, RATE_RULES.google)
   const body = await readJson(request, GoogleMobileBodySchema)
   const config = requireGoogleConfig()
 
