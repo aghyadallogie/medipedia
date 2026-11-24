@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { SignUpForm } from '@/components/auth/sign-up-form'
 import { AuthCard } from '@/components/auth/ui'
 import { Container } from '@/components/site-chrome'
+import { env } from '@/env'
 import { googleDeps } from '@/server/auth/google'
 
 export const metadata: Metadata = {
@@ -20,7 +21,10 @@ export default function SignUpPage() {
         title="Create an account"
         description="Free. An account gives you the lectures, flashcards, practice questions, papers and videos."
       >
-        <SignUpForm googleEnabled={googleDeps.getConfig() !== null} />
+        <SignUpForm
+          googleEnabled={googleDeps.getConfig() !== null}
+          confirmationRequired={env.REQUIRE_EMAIL_CONFIRMATION}
+        />
       </AuthCard>
     </Container>
   )

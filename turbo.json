@@ -17,7 +17,11 @@
         "GOOGLE_MOBILE_CLIENT_IDS",
         "RESEND_API_KEY",
         "EMAIL_FROM",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+        "REQUIRE_EMAIL_CONFIRMATION",
         "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_CONTACT_EMAIL",
         "VERCEL_ENV"
       ]
     },

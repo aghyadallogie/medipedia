@@ -47,6 +47,17 @@ const ServerEnvSchema = z
     // Phase 7 (rate limiting)
     UPSTASH_REDIS_REST_URL: optionalString(z.url()),
     UPSTASH_REDIS_REST_TOKEN: optionalString(z.string()),
+
+    /**
+     * Whether a new account must confirm its email address before it can sign in (AGENTS.md §5).
+     * Set to `false` while there is no way to send email: no confirmation email is sent and an
+     * unconfirmed account can sign in. Accounts then stay unconfirmed, which keeps Google sign-in
+     * from being taken over through an address someone else registered first.
+     */
+    REQUIRE_EMAIL_CONFIRMATION: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.stringbool().default(true),
+    ),
   })
   .refine((env) => env.JWT_SECRET !== env.PAYLOAD_SECRET, {
     message: 'JWT_SECRET must differ from PAYLOAD_SECRET (AGENTS.md §5)',

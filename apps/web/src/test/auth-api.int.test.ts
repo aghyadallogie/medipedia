@@ -18,6 +18,7 @@ import { POST as verifyPOST } from '@/app/api/v1/auth/verify-email/route'
 import { DELETE as meDELETE, GET as meGET, PATCH as mePATCH } from '@/app/api/v1/me/route'
 import { hashRefreshToken } from '@/server/auth/refresh-tokens'
 
+import { env } from '@/env'
 import { rateLimitTesting } from '@/server/rate-limit'
 import { creator, PASSWORD, startHarness, type Harness } from './harness'
 
@@ -709,5 +710,100 @@ describe('rate limits', () => {
       )
     for (let i = 0; i < 5; i++) expect((await register()).status).toBe(202)
     expect((await register()).status).toBe(429)
+  })
+})
+
+describe('email confirmation switched off (REQUIRE_EMAIL_CONFIRMATION=false)', () => {
+  beforeEach(() => {
+    env.REQUIRE_EMAIL_CONFIRMATION = false
+  })
+  afterEach(() => {
+    env.REQUIRE_EMAIL_CONFIRMATION = true
+  })
+
+  const wrong = (address: string) =>
+    post(loginPOST, '/api/v1/auth/login', { email: address, password: 'Wrong-password-1!' })
+
+  it('sends no email and lets the new account sign in, still stored as unconfirmed', async () => {
+    const address = email('open')
+    const registered = await post(registerPOST, '/api/v1/auth/register', {
+      email: address,
+      password: PASSWORD,
+    })
+    expect(registered.status).toBe(202)
+    expect(registered.json).toEqual({ data: { ok: true } })
+    expect(sendEmail).not.toHaveBeenCalled()
+
+    // Unconfirmed on purpose: Google sign-in decides whether it may take over the account by this.
+    expect(await findUser(address)).toMatchObject({ role: 'learner', _verified: false })
+
+    const session = await post(loginPOST, '/api/v1/auth/login', {
+      email: address,
+      password: PASSWORD,
+    })
+    expect(session.status).toBe(200)
+    expect(session.setCookies.some((cookie) => cookie.startsWith(AUTH_COOKIES.access))).toBe(true)
+
+    const me = await call(meGET, 'GET', '/api/v1/me', { cookies: jar(session.setCookies) })
+    expect(me.status).toBe(200)
+    expect(me.json.data).toMatchObject({ email: address, emailVerified: false })
+  })
+
+  it('still refuses a wrong password, with the same answer as an unknown address', async () => {
+    const address = email('guarded')
+    await post(registerPOST, '/api/v1/auth/register', { email: address, password: PASSWORD })
+    const bad = await wrong(address)
+    const unknown = await wrong(email('nobody'))
+    expect(bad.status).toBe(401)
+    expect(unknown.status).toBe(401)
+    expect(bad.json.error.details).toEqual({ reason: 'invalid_credentials' })
+    expect(unknown.json.error.details).toEqual({ reason: 'invalid_credentials' })
+  })
+
+  it('still locks the account after five wrong passwords', async () => {
+    const address = email('lockme')
+    await post(registerPOST, '/api/v1/auth/register', { email: address, password: PASSWORD })
+    for (let i = 0; i < 5; i++) expect((await wrong(address)).status).toBe(401)
+    const locked = await post(loginPOST, '/api/v1/auth/login', {
+      email: address,
+      password: PASSWORD,
+    })
+    expect(locked.json.error.details).toEqual({ reason: 'account_locked' })
+  })
+
+  it('forgets earlier wrong passwords after a good sign-in, as Payload does for a confirmed account', async () => {
+    const address = email('typos')
+    await post(registerPOST, '/api/v1/auth/register', { email: address, password: PASSWORD })
+    for (let i = 0; i < 3; i++) await wrong(address)
+    expect(
+      (await post(loginPOST, '/api/v1/auth/login', { email: address, password: PASSWORD })).status,
+    ).toBe(200)
+    // Without the reset, two more mistakes would reach the limit of five and lock the account.
+    for (let i = 0; i < 4; i++) expect((await wrong(address)).status).toBe(401)
+  })
+
+  it('does not re-send a link for an address that registered earlier', async () => {
+    const address = email('again')
+    await post(registerPOST, '/api/v1/auth/register', { email: address, password: PASSWORD })
+    const second = await post(registerPOST, '/api/v1/auth/register', {
+      email: address,
+      password: PASSWORD,
+    })
+    expect(second.status).toBe(202)
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('lets an account that registered while confirmation was required sign in too', async () => {
+    env.REQUIRE_EMAIL_CONFIRMATION = true
+    const address = email('before')
+    await post(registerPOST, '/api/v1/auth/register', { email: address, password: PASSWORD })
+    expect(
+      (await post(loginPOST, '/api/v1/auth/login', { email: address, password: PASSWORD })).status,
+    ).toBe(403)
+
+    env.REQUIRE_EMAIL_CONFIRMATION = false
+    expect(
+      (await post(loginPOST, '/api/v1/auth/login', { email: address, password: PASSWORD })).status,
+    ).toBe(200)
   })
 })
