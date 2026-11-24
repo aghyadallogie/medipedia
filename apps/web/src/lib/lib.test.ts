@@ -202,9 +202,13 @@ describe('JSON-LD builders', () => {
 })
 
 describe('buildSitemap', () => {
-  it('lists only the public pages, which today is the home page', () => {
+  it('lists only the pages a visitor can open without an account', () => {
     const urls = buildSitemap(new Date(NOW))
-    expect(urls.map((entry) => entry.url)).toEqual(['http://localhost:3000/'])
+    expect(urls.map((entry) => entry.url)).toEqual([
+      'http://localhost:3000/',
+      'http://localhost:3000/terms',
+      'http://localhost:3000/privacy',
+    ])
     expect(urls[0]?.lastModified).toEqual(new Date(NOW))
   })
 })

@@ -103,6 +103,18 @@ export function SignUpForm({ googleEnabled }: { googleEnabled: boolean }) {
         </SubmitButton>
       </form>
 
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        By creating an account you agree to our{' '}
+        <Link href="/terms" className={linkClass}>
+          terms
+        </Link>{' '}
+        and{' '}
+        <Link href="/privacy" className={linkClass}>
+          privacy policy
+        </Link>
+        .
+      </p>
+
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Already have an account?{' '}
         <Link href="/sign-in" className={linkClass}>

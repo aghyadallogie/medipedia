@@ -8,7 +8,7 @@
 import { z } from 'zod'
 
 /** Treat `KEY=` (empty string) in a .env file as unset. */
-const optionalString = (schema: z.ZodString | z.ZodURL) =>
+const optionalString = (schema: z.ZodType<string>) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema.optional())
 
 const postgresUrl = z
@@ -87,6 +87,8 @@ const ServerEnvSchema = z
 
 const PublicEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.url(),
+  /** Where privacy requests and questions about the terms go. Shown on /terms and /privacy. */
+  NEXT_PUBLIC_CONTACT_EMAIL: optionalString(z.email()),
 })
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>
@@ -130,4 +132,5 @@ export const env: ServerEnv = isServer
 /** `NEXT_PUBLIC_*` values, referenced literally so Next.js can inline them in client bundles. */
 export const publicEnv: PublicEnv = parsePublicEnv({
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  NEXT_PUBLIC_CONTACT_EMAIL: process.env.NEXT_PUBLIC_CONTACT_EMAIL,
 })
