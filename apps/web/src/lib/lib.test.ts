@@ -1,8 +1,6 @@
 import type { Lecture, Paper, Video } from '@medipedia/shared'
 import { describe, expect, it } from 'vitest'
 
-import type { SitemapEntries } from '@/server/public-queries'
-
 import { formatAuthors, formatDate, formatDuration } from './format'
 import {
   breadcrumbJsonLd,
@@ -204,28 +202,9 @@ describe('JSON-LD builders', () => {
 })
 
 describe('buildSitemap', () => {
-  const entries: SitemapEntries = {
-    domains: [{ slug: 'cardiology', updatedAt: '2026-01-01T00:00:00.000Z' }],
-    lectures: [{ slug: 'a b', updatedAt: '2026-02-01T00:00:00.000Z' }],
-    papers: [{ slug: 'p', updatedAt: '2026-03-01T00:00:00.000Z' }],
-    videos: [],
-    flashcardTopics: [{ slug: 'acs', updatedAt: '2026-04-01T00:00:00.000Z' }],
-  }
-
-  it('lists the index pages and one entry per document with its real modified date', () => {
-    const urls = buildSitemap(entries, new Date(NOW))
-    expect(urls.map((entry) => entry.url)).toEqual([
-      'http://localhost:3000/',
-      'http://localhost:3000/lectures',
-      'http://localhost:3000/papers',
-      'http://localhost:3000/videos',
-      'http://localhost:3000/flashcards',
-      'http://localhost:3000/domains',
-      'http://localhost:3000/domains/cardiology',
-      'http://localhost:3000/lectures/a%20b',
-      'http://localhost:3000/papers/p',
-      'http://localhost:3000/flashcards/acs',
-    ])
-    expect(urls.at(-1)?.lastModified).toEqual(new Date('2026-04-01T00:00:00.000Z'))
+  it('lists only the public pages, which today is the home page', () => {
+    const urls = buildSitemap(new Date(NOW))
+    expect(urls.map((entry) => entry.url)).toEqual(['http://localhost:3000/'])
+    expect(urls[0]?.lastModified).toEqual(new Date(NOW))
   })
 })

@@ -19,7 +19,7 @@ An education platform for medical/clinical learners combining:
 
 **Clients:**
 
-- **Web app** (Next.js, SSR/SSG, SEO-friendly). Lectures, papers, videos, domains and flashcards are public; questions and analytics require a learner account.
+- **Web app** (Next.js, SSR/SSG). **Members only** (see §15): a visitor who is not signed in sees the home page, the sign-in and account-recovery pages and nothing else; every other page needs a learner account. The `/api/v1` content endpoints are still readable without one (§6).
 - **Mobile app** (built later, separate repo) — consumes the same App API via `packages/api-client`.
 
 **Admins** author and publish content through **Payload CMS** embedded in the Next.js app at `/admin`.
@@ -263,7 +263,7 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 ### Rules
 
 - **Never** expose `JWT_SECRET` or `PAYLOAD_SECRET` to the client.
-- All `/api/v1/me/*` routes and all `/api/v1/questions/*` routes require auth. Other public content routes require no auth.
+- All `/api/v1/me/*` routes, all `/api/v1/questions/*` routes (counts included) and every content route (domains, topics, lectures, papers, videos, flashcards) require auth: a missing or invalid token is a `401`. Only `/auth/*` (sign-in, registration, recovery) and `/health` are open (§15).
 - Logout revokes the refresh token family for that device.
 - `DELETE /api/v1/me` deletes the account, its `AnswerEvents` and its `RefreshTokens` (App Store account-deletion requirement). Accounts with a password (`provider: 'email'`) must send it to confirm, and a wrong guess counts towards the lockout. Google-only accounts have no password to confirm.
 - **No account enumeration:** register and forgot-password answer `202 { ok: true }` whether or not the address has an account; a wrong password and an unknown address give the same `401 invalid_credentials`. Register for an unconfirmed address re-sends the link and changes nothing else; for a confirmed address it does nothing.
@@ -304,7 +304,7 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 
 ### Endpoints (v1)
 
-- Public: `GET /domains`, `GET /domains/:slug`, `GET /topics`, `GET /lectures`, `GET /lectures/:slug`, `GET /papers`, `GET /papers/:slug`, `GET /videos`, `GET /videos/:slug`, `GET /flashcards?topic=&domain=`, `GET /flashcards/:id/back`, `GET /questions/stats` (public counts per domain/topic only).
+- Content (sign-in required, §15): `GET /domains`, `GET /domains/:slug`, `GET /topics`, `GET /lectures`, `GET /lectures/:slug`, `GET /papers`, `GET /papers/:slug`, `GET /videos`, `GET /videos/:slug`, `GET /flashcards?topic=&domain=`, `GET /flashcards/:id/back`, `GET /questions/stats` (counts per domain/topic only). `GET /health` is open.
 - Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `POST /auth/refresh`, `POST /auth/verify-email`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `GET /auth/google`, `GET /auth/google/callback`, `POST /auth/google/mobile`, and `GET /auth/refresh?next=` (browser page navigations only, see §5; not part of the mobile contract).
 - Authenticated: `GET /me`, `PATCH /me`, `DELETE /me`, `GET /me/analytics`, `GET /me/questions/next?domains=&topics=&filter=unused|incorrect|all`, `GET /questions/:id`, `POST /questions/:id/answer`.
   - `next` takes comma-separated slugs. A domain includes its sub-domains; `domains` and `topics` together must both match; an unknown slug matches nothing. `filter` defaults to `unused` (never answered); `incorrect` means the latest answer to the question was wrong. It returns `{ question, remaining }` with a random matching question, or `question: null`. The pool is chosen in memory from ids only, which is fine at the target scale (§15).
@@ -318,17 +318,17 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 
 ## 7. Caching Strategy
 
-**Principle: public content is cached at the edge aggressively; user-specific and login-gated data is never cached publicly.**
+**Principle: the site is members-only (§15), so nothing is cached at a shared edge. Content is cached in Next.js's Data Cache on the server and served as `private, no-store` over HTTP.**
 
 - **Decision (Phase 3): `unstable_cache`, not `'use cache'`.** Next 16.4's bundled docs keep `unstable_cache` as the supported cache for non-`fetch` data and say to keep using it for data that should survive deployments. `'use cache'` needs Cache Components, which means restructuring every page around Suspense and is untested next to Payload's admin in the same app; its entries also do not carry over between deployments. Revisit when Payload documents Cache Components support. `revalidateTag` takes a profile in Next 16: the hooks call `revalidateTag(tag, { expire: 0 })`.
 - **Public content reads** (`lectures`, `papers`, `videos`, `flashcards`, `domains`, `topics`, `questions/stats`, sitemap) all go through `cachedQuery()` in `src/server/cache.ts`, used by `src/server/public-queries.ts`. Both the web pages and the `/api/v1` handlers call these functions, so there is one set of queries and one set of tags.
   - Each query is tagged: `content` (everything), its collection (`lectures`), its item (`lecture:<slug>`, `flashcard:<id>`), and `domain:<slug>` / `topic:<slug>` when filtered. Lists and details that embed domain names also carry `domains` (and `topics`), so a rename refreshes them. Tag names come from `src/server/cache-tags.ts`, shared with the publish hooks, and an integration test checks that what a publish invalidates is what the queries are tagged with.
   - `revalidate: 3600` on every cached query and page is only a safety net for a missed invalidation.
-  - Response headers: `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (tune per resource).
+  - Response headers: every `/api/v1` response is `Cache-Control: private, no-store`, because every content route needs a signed-in user (§15). A `public, s-maxage` policy existed while content was open and was removed with it; bring it back only together with a public route.
 - **Pages**: index pages are static (`revalidate = 3600`); detail pages use an empty `generateStaticParams` and `dynamicParams`, so each is rendered on first request and then cached as ISR. Pages never read `searchParams`, which keeps them static. List pages render the first page on the server and later pages load in the browser through `packages/api-client`.
 - **On publish**: a Payload `afterChange` hook (and `afterDelete`) on each content collection calls tag revalidation for the item-level tag and the collection-level tag. No manual cache busting.
-- **Known staleness:** tag revalidation updates the Data Cache and pages immediately, but API responses already cached at Vercel's edge via `s-maxage` can stay stale for up to `s-maxage` (60s). This is accepted.
-- **Question reads require auth**, so `GET /questions/:id` and `GET /me/questions/next` are `private, no-store`. Only aggregate counts (`/questions/stats`) are public.
+- **Known staleness (only if a public policy returns):** tag revalidation updates the Data Cache and pages immediately, but API responses already cached at Vercel's edge via `s-maxage` can stay stale for up to `s-maxage` (60s). This is accepted.
+- **Question reads require auth**, so `GET /questions/:id` and `GET /me/questions/next` are `private, no-store`, as is everything else under `/api/v1` except the open auth routes.
 - **Authenticated responses** (`/api/v1/me/*`, `/api/v1/auth/*`) set `Cache-Control: private, no-store`.
 - **Question answer submissions** are never cached.
 - **Revalidation granularity**: prefer item-level tags (`lecture:my-slug`) so a single edit doesn't invalidate the whole collection. Collection-level tags (`lectures`) are for index pages only.
@@ -551,6 +551,8 @@ Each phase is shippable and tested before moving on.
 ---
 
 ## 15. Decisions & Assumptions
+
+**Members only (decided 2026-11-23, replaces "public content"):** signed-out visitors see only the home page (`/`, a static landing page that asks them to sign up or sign in). `proxy.ts` gates every page that is not in its `PUBLIC_PAGES` set (`/`, `/reset-password`, `/verify-email`, `/terms`, `/privacy`) or `GUEST_PAGES` (`/sign-in`, `/sign-up`, `/forgot-password`), so **a new page is members-only unless it is added to that list**. Its matcher covers every page and skips only `/api`, `/admin`, Next internals and files with an extension. A visitor without the `signed_in` hint cookie goes straight to `/sign-in?next=`; one with the hint goes through the refresh endpoint first. The header shows its links only when the hint cookie says signed in, and the sitemap lists the home page only (members-only pages would just redirect a crawler). **Consequences accepted:** lectures, papers, videos, domains and flashcards are no longer indexable by search engines (their JSON-LD and metadata are now moot for crawlers). **API gated too (decided 2026-11-24):** the `/api/v1` content endpoints (`/lectures`, `/papers`, `/videos`, `/domains`, `/topics`, `/flashcards`, `/questions/stats`) need a signed-in user as well, so content cannot be fetched without an account. A missing or invalid token is a `401` and responses are `private, no-store`; the mobile app sends its Bearer token as it already does for `/me`. `assertCanRead` now receives the user. Open: `/auth/*` and `/health`. Web client components call the API through `webApi()`, which renews an expired session once and retries.
 
 **Confirmed (2026-11-22):**
 

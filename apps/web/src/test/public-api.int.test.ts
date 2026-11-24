@@ -1,6 +1,7 @@
 /**
- * Phase 3 exit tests: the public read API behaves as specified against a real database, only
+ * Phase 3 exit tests: the content read API behaves as specified against a real database, only
  * ever exposes published content, never leaks question content, and agrees with the typed client.
+ * Every content endpoint needs a signed-in learner (AGENTS.md §15); `health` stays open.
  */
 import { createApiClient, paginate, ApiClientError } from '@medipedia/api-client'
 import {
@@ -38,6 +39,7 @@ vi.mock('next/cache', () => ({
 
 import { revalidateTag } from 'next/cache'
 
+import { POST as loginPOST } from '@/app/api/v1/auth/login/route'
 import { GET as domainGET } from '@/app/api/v1/domains/[slug]/route'
 import { GET as domainsGET } from '@/app/api/v1/domains/route'
 import { GET as flashcardBackGET } from '@/app/api/v1/flashcards/[id]/back/route'
@@ -56,7 +58,6 @@ import { paragraphsToLexical } from '@/server/lexical'
 import {
   getFlashcardTopic,
   getLecture,
-  getSitemapEntries,
   listFlashcardTopics,
   listLectures,
 } from '@/server/public-queries'
@@ -92,8 +93,17 @@ const routes: Array<{ pattern: RegExp; keys: string[]; handler: Handler }> = [
 
 const BASE = 'http://test.local'
 
-async function call(pathAndQuery: string): Promise<Response> {
-  const request = new Request(`${BASE}${pathAndQuery}`)
+/** A signed-in learner's access token, set once the harness is up. */
+let learnerToken: string | null = null
+
+async function call(
+  pathAndQuery: string,
+  options: { anonymous?: boolean; token?: string } = {},
+): Promise<Response> {
+  const headers = new Headers()
+  const token = options.token ?? (options.anonymous ? null : learnerToken)
+  if (token) headers.set('authorization', `Bearer ${token}`)
+  const request = new Request(`${BASE}${pathAndQuery}`, { headers })
   const { pathname } = new URL(request.url)
   for (const route of routes) {
     const match = route.pattern.exec(pathname)
@@ -110,12 +120,17 @@ const routeFetch: typeof fetch = async (input) => {
   const url = new URL(String(input))
   return call(url.pathname + url.search)
 }
-const api = createApiClient({ baseUrl: BASE, fetch: routeFetch })
+const api = createApiClient({
+  baseUrl: BASE,
+  fetch: routeFetch,
+  getAccessToken: () => learnerToken,
+})
 
 async function json(
   pathAndQuery: string,
+  options: { anonymous?: boolean; token?: string } = {},
 ): Promise<{ status: number; body: unknown; headers: Headers }> {
-  const response = await call(pathAndQuery)
+  const response = await call(pathAndQuery, options)
   return { status: response.status, body: await response.json(), headers: response.headers }
 }
 
@@ -143,6 +158,26 @@ beforeAll(async () => {
     data: { email: 'admin@example.com', password: PASSWORD },
   })
   await seedSampleContent(payload)
+
+  await create({
+    collection: 'users',
+    data: { email: 'learner@example.com', password: PASSWORD, name: 'Learner', _verified: true },
+    disableVerificationEmail: true,
+  })
+  const login = await loginPOST(
+    new Request(`${BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        email: 'learner@example.com',
+        password: PASSWORD,
+        client: 'mobile',
+      }),
+    }),
+  )
+  expect(login.status).toBe(200)
+  const session = (await login.json()) as { data: { tokens: { accessToken: string } } }
+  learnerToken = session.data.tokens.accessToken
 
   const [cardiology, topics] = await Promise.all([
     payload.find({ collection: 'domains', where: { slug: { equals: 'cardiology' } }, limit: 1 }),
@@ -211,11 +246,44 @@ describe('GET /api/v1/health', () => {
   })
 })
 
+describe('signing in is required', () => {
+  const protectedPaths = [
+    '/api/v1/domains',
+    '/api/v1/domains/cardiology',
+    '/api/v1/topics',
+    '/api/v1/lectures',
+    '/api/v1/lectures/sample-approach-to-acute-chest-pain',
+    '/api/v1/papers',
+    '/api/v1/papers/draft-only-paper',
+    '/api/v1/videos',
+    '/api/v1/videos/draft-only-video',
+    '/api/v1/flashcards',
+    '/api/v1/flashcards/00000000-0000-4000-8000-000000000000/back',
+    '/api/v1/questions/stats',
+  ]
+
+  it.each(protectedPaths)('refuses %s without a token', async (path) => {
+    const { status, body, headers } = await json(path, { anonymous: true })
+    expect(status).toBe(401)
+    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
+    expect(ApiErrorBodySchema.parse(body).error.code).toBe('unauthorized')
+  })
+
+  it('refuses a token that is not valid', async () => {
+    expect((await json('/api/v1/lectures')).status).toBe(200)
+    expect((await json('/api/v1/lectures', { token: 'not-a-token' })).status).toBe(401)
+  })
+
+  it('leaves the health check open', async () => {
+    expect((await json('/api/v1/health', { anonymous: true })).status).toBe(200)
+  })
+})
+
 describe('domains and topics', () => {
   it('lists every domain in display order with the paginated envelope', async () => {
     const { status, body, headers } = await json('/api/v1/domains')
     expect(status).toBe(200)
-    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
     const parsed = DomainListResponseSchema.parse(body)
     expect(parsed.nextCursor).toBeNull()
     // By `order`, then name: Arrhythmias and Cardiology tie on order 1, so the name decides.
@@ -305,7 +373,7 @@ describe('lectures', () => {
   it('returns the full lecture with HTML body and citations', async () => {
     const { body, headers } = await json('/api/v1/lectures/sample-approach-to-acute-chest-pain')
     const { data } = LectureResponseSchema.parse(body)
-    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
     expect(data.body.html).toContain('<p>Acute chest pain has a broad differential.')
     expect(data.domains.map((domain) => domain.slug)).toEqual(['cardiology'])
     expect(data.publishedAt).toEqual(expect.any(String))
@@ -488,9 +556,9 @@ describe('question statistics', () => {
     expect(data.byTopic.find((entry) => entry.slug === 'cardiac-emergencies')?.count).toBe(0)
   })
 
-  it('is public but exposes counts only, never question content', async () => {
+  it('exposes counts only, never question content', async () => {
     const { headers, body } = await json('/api/v1/questions/stats')
-    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
     const text = JSON.stringify(body)
     for (const leak of [
       'isCorrect',
@@ -545,20 +613,6 @@ describe('the typed API client over the real handlers', () => {
     expect(error).toMatchObject({ code: 'not_found', status: 404 })
     const bad = await api.lectures.list({ limit: 500 }).catch((e: unknown) => e)
     expect(bad).toMatchObject({ code: 'validation_error', status: 400 })
-  })
-})
-
-describe('sitemap data', () => {
-  it('lists published documents only, with their modified dates', async () => {
-    const entries = await getSitemapEntries()
-    expect(entries.lectures.map((entry) => entry.slug).sort()).toEqual(LECTURE_SLUGS)
-    expect(entries.domains).toHaveLength(4)
-    expect(entries.papers).toHaveLength(2)
-    expect(entries.videos).toHaveLength(2)
-    expect(entries.flashcardTopics).toHaveLength(5)
-    const text = JSON.stringify(entries)
-    expect(text).not.toContain('draft-only')
-    for (const entry of entries.lectures) expect(Date.parse(entry.updatedAt)).not.toBeNaN()
   })
 })
 

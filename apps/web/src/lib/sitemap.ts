@@ -1,24 +1,14 @@
 import type { MetadataRoute } from 'next'
 
-import type { SitemapEntries } from '@/server/public-queries'
 import { absoluteUrl } from '@/server/site'
 
-const STATIC_PATHS = ['/', '/lectures', '/papers', '/videos', '/flashcards', '/domains'] as const
+/**
+ * The URLs a search engine can read. Everything else on the site is for signed-in learners and
+ * redirects to the sign-in page (AGENTS.md §15, "Members only"), so it would only mislead a
+ * crawler. Add a page here when it becomes public (see `PUBLIC_PAGES` in `proxy.ts`).
+ */
+const PUBLIC_PATHS = ['/'] as const
 
-/** Every public URL: the index pages plus one entry per published document. */
-export function buildSitemap(entries: SitemapEntries, now: Date): MetadataRoute.Sitemap {
-  const documents = (base: string, items: SitemapEntries[keyof SitemapEntries]) =>
-    items.map(({ slug, updatedAt }) => ({
-      url: absoluteUrl(`${base}/${encodeURIComponent(slug)}`),
-      lastModified: new Date(updatedAt),
-    }))
-
-  return [
-    ...STATIC_PATHS.map((path) => ({ url: absoluteUrl(path), lastModified: now })),
-    ...documents('/domains', entries.domains),
-    ...documents('/lectures', entries.lectures),
-    ...documents('/papers', entries.papers),
-    ...documents('/videos', entries.videos),
-    ...documents('/flashcards', entries.flashcardTopics),
-  ]
+export function buildSitemap(now: Date): MetadataRoute.Sitemap {
+  return PUBLIC_PATHS.map((path) => ({ url: absoluteUrl(path), lastModified: now }))
 }

@@ -6,23 +6,23 @@ import { ApiError, CACHE_CONTROL, errorResponse, handler, ok, okList } from './h
 
 describe('ok', () => {
   it('wraps data and sets the cache policy', async () => {
-    const res = ok({ hello: 'world' }, { cache: 'public' })
+    const res = ok({ hello: 'world' }, { cache: 'private' })
     expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
     expect(await res.json()).toEqual({ data: { hello: 'world' } })
   })
 })
 
 describe('okList', () => {
   it('wraps items with the next cursor and sets the cache policy', async () => {
-    const res = okList([{ a: 1 }], 'next-cursor', { cache: 'public' })
+    const res = okList([{ a: 1 }], 'next-cursor', { cache: 'private' })
     expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.public)
+    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
     expect(await res.json()).toEqual({ data: [{ a: 1 }], nextCursor: 'next-cursor' })
   })
 
   it('keeps nextCursor present and null on the last page', async () => {
-    const res = okList([], null, { cache: 'public' })
+    const res = okList([], null, { cache: 'private' })
     expect(await res.json()).toEqual({ data: [], nextCursor: null })
   })
 })

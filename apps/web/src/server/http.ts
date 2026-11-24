@@ -6,9 +6,7 @@ import { API_ERROR_STATUS, type ApiErrorBody, type ApiErrorCode } from '@mediped
 import { ZodError } from 'zod'
 
 export const CACHE_CONTROL = {
-  /** Public content: cached at the edge (AGENTS.md §7). */
-  public: 'public, s-maxage=60, stale-while-revalidate=300',
-  /** Authenticated, login-gated or mutating responses. */
+  /** Every response: the API is for signed-in learners, so nothing is cached at a shared edge (AGENTS.md §7, §15). */
   private: 'private, no-store',
 } as const
 

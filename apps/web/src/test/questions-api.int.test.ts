@@ -230,7 +230,7 @@ describe('GET routes never leak the answer key (Phase 5 exit test)', () => {
       await nextQuestion('?filter=incorrect', token),
       await nextQuestion('?domains=cardiology&topics=atrial-fibrillation&filter=all', token),
       await analytics(token),
-      await request(statsGET, 'GET', '/api/v1/questions/stats'),
+      await request(statsGET, 'GET', '/api/v1/questions/stats', { token }),
     ]
     for (const response of responses) {
       expect(response.status).toBe(200)
