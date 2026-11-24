@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 
 import { AccountPanel } from '@/components/auth/account-panel'
 import { Container, PageHeading } from '@/components/site-chrome'
+import { env } from '@/env'
 import { toUserDto } from '@/server/auth/http'
 import { authenticateHeaders } from '@/server/auth/session'
 
@@ -22,7 +23,7 @@ export default async function AccountPage() {
     <Container>
       <div className="max-w-2xl">
         <PageHeading eyebrow="Account" title={user.name ?? 'Your account'} />
-        <AccountPanel user={toUserDto(user)} />
+        <AccountPanel user={toUserDto(user)} showConfirmation={env.REQUIRE_EMAIL_CONFIRMATION} />
       </div>
     </Container>
   )

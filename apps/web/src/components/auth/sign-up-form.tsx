@@ -2,6 +2,7 @@
 
 import { PASSWORD_MIN_LENGTH } from '@medipedia/shared'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
 import {
@@ -13,9 +14,19 @@ import {
   SubmitButton,
 } from '@/components/auth/ui'
 import { authErrorMessage } from '@/lib/auth-errors'
-import { webApi } from '@/lib/web-api'
+import { notifyAuthChange, webApi } from '@/lib/web-api'
 
-export function SignUpForm({ googleEnabled }: { googleEnabled: boolean }) {
+/** Where a new account lands once it is signed in (the same default as `proxy.ts`). */
+const AFTER_SIGN_UP = '/account'
+
+type Props = {
+  googleEnabled: boolean
+  /** False when the site does not email confirmation links: the new account is signed in at once. */
+  confirmationRequired: boolean
+}
+
+export function SignUpForm({ googleEnabled, confirmationRequired }: Props) {
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
@@ -25,15 +36,27 @@ export function SignUpForm({ googleEnabled }: { googleEnabled: boolean }) {
     const form = new FormData(event.currentTarget)
     const email = String(form.get('email') ?? '').trim()
     const name = String(form.get('name') ?? '').trim()
+    const password = String(form.get('password') ?? '')
     setBusy(true)
     setError(null)
     try {
-      await webApi().auth.register({
-        email,
-        password: String(form.get('password') ?? ''),
-        ...(name ? { name } : {}),
-      })
-      setSentTo(email)
+      await webApi().auth.register({ email, password, ...(name ? { name } : {}) })
+      if (confirmationRequired) {
+        setSentTo(email)
+        return
+      }
+      // No confirmation step: sign in with what was just entered. If that fails the address may
+      // already have an account with another password (register answers the same either way),
+      // so fall back to the same neutral message instead of saying which.
+      try {
+        await webApi().auth.login({ email, password })
+        notifyAuthChange()
+        router.replace(AFTER_SIGN_UP)
+        router.refresh()
+        return
+      } catch {
+        setSentTo(email)
+      }
     } catch (caught) {
       setError(authErrorMessage(caught))
     } finally {
@@ -43,6 +66,26 @@ export function SignUpForm({ googleEnabled }: { googleEnabled: boolean }) {
 
   // The same message whether or not the address already had an account: the page must not
   // reveal who is registered.
+  if (sentTo && !confirmationRequired) {
+    return (
+      <div className="space-y-4 animate-fade-up">
+        <Message tone="success">
+          Your account is ready. Sign in with the email and password you just used.
+        </Message>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          <Link href="/sign-in" className={linkClass}>
+            Sign in
+          </Link>
+          . If you already have an account with this address, use its password or{' '}
+          <Link href="/forgot-password" className={linkClass}>
+            reset it
+          </Link>
+          .
+        </p>
+      </div>
+    )
+  }
+
   if (sentTo) {
     return (
       <div className="space-y-4 animate-fade-up">

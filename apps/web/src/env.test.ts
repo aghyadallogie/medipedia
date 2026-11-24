@@ -18,6 +18,19 @@ describe('parseServerEnv', () => {
     expect(env.RESEND_API_KEY).toBeUndefined()
   })
 
+  it('requires email confirmation unless it is switched off', () => {
+    expect(parseServerEnv(valid).REQUIRE_EMAIL_CONFIRMATION).toBe(true)
+    expect(
+      parseServerEnv({ ...valid, REQUIRE_EMAIL_CONFIRMATION: '' }).REQUIRE_EMAIL_CONFIRMATION,
+    ).toBe(true)
+    expect(
+      parseServerEnv({ ...valid, REQUIRE_EMAIL_CONFIRMATION: 'false' }).REQUIRE_EMAIL_CONFIRMATION,
+    ).toBe(false)
+    expect(
+      parseServerEnv({ ...valid, REQUIRE_EMAIL_CONFIRMATION: 'true' }).REQUIRE_EMAIL_CONFIRMATION,
+    ).toBe(true)
+  })
+
   it('parses PAYLOAD_MIGRATING as a boolean', () => {
     expect(parseServerEnv({ ...valid, PAYLOAD_MIGRATING: 'true' }).PAYLOAD_MIGRATING).toBe(true)
   })

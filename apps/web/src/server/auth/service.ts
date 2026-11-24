@@ -75,6 +75,9 @@ async function resendVerification(payload: Payload, user: User): Promise<void> {
  * Creates an unverified learner account and emails the confirmation link. If the address is
  * already registered nothing is revealed: a pending account gets the link again, and a confirmed
  * one is left alone.
+ *
+ * With `REQUIRE_EMAIL_CONFIRMATION=false` no email is sent at all (and none is re-sent), and the
+ * account can sign in straight away. It is still stored as unconfirmed.
  */
 export async function registerAccount(
   payload: Payload,
@@ -82,7 +85,11 @@ export async function registerAccount(
 ): Promise<void> {
   const existing = await findUserByEmail(payload, input.email)
   if (existing) {
-    if (existing._verified !== true && existing.provider === 'email') {
+    if (
+      env.REQUIRE_EMAIL_CONFIRMATION &&
+      existing._verified !== true &&
+      existing.provider === 'email'
+    ) {
       await resendVerification(payload, existing)
     }
     return
@@ -98,6 +105,7 @@ export async function registerAccount(
         role: 'learner',
         provider: 'email',
       },
+      disableVerificationEmail: !env.REQUIRE_EMAIL_CONFIRMATION,
     })
   } catch (error) {
     // Two sign-ups for the same address at once: the loser lands here. Same silent outcome.
@@ -144,6 +152,11 @@ function mapLoginError(error: unknown): unknown {
  * Checks an email and password with Payload (which hashes, counts failures, locks the account
  * after five and requires a confirmed email) and returns the user. Payload's own token is
  * discarded: our sessions are the access and refresh tokens below.
+ *
+ * With `REQUIRE_EMAIL_CONFIRMATION=false` an unconfirmed account may sign in. Payload checks the
+ * password and the lockout before it checks confirmation, so an `UnverifiedEmail` error means the
+ * password was right and the account was not locked; the user is then loaded here and the failed
+ * attempts Payload would have cleared on success are cleared by hand.
  */
 export async function loginWithPassword(
   payload: Payload,
@@ -154,8 +167,25 @@ export async function loginWithPassword(
     if (!user) throw new AuthenticationError()
     return user as User
   } catch (error) {
+    if (error instanceof UnverifiedEmail && !env.REQUIRE_EMAIL_CONFIRMATION) {
+      const user = await findUserByEmail(payload, credentials.email)
+      if (user) {
+        await clearFailedAttempts(payload, user.id)
+        return user
+      }
+    }
     throw mapLoginError(error)
   }
+}
+
+/** What Payload does after a successful sign-in: forget earlier wrong passwords. */
+async function clearFailedAttempts(payload: Payload, userId: string): Promise<void> {
+  await payload.update({
+    collection: 'users',
+    id: userId,
+    data: { loginAttempts: 0, lockUntil: null },
+    overrideAccess: true,
+  })
 }
 
 export type StartedSession = {

@@ -124,7 +124,14 @@ function DeleteAccount({ user }: { user: User }) {
   )
 }
 
-export function AccountPanel({ user }: { user: User }) {
+export function AccountPanel({
+  user,
+  showConfirmation = true,
+}: {
+  user: User
+  /** False when the site does not ask for email confirmation, so "not confirmed" would mislead. */
+  showConfirmation?: boolean
+}) {
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
 
@@ -146,9 +153,11 @@ export function AccountPanel({ user }: { user: User }) {
           <dt className="text-slate-500 dark:text-slate-400">Email</dt>
           <dd className="break-all font-medium">
             {user.email}{' '}
-            <span className="ml-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800 dark:bg-brand-900 dark:text-brand-100">
-              {user.emailVerified ? 'confirmed' : 'not confirmed'}
-            </span>
+            {showConfirmation ? (
+              <span className="ml-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800 dark:bg-brand-900 dark:text-brand-100">
+                {user.emailVerified ? 'confirmed' : 'not confirmed'}
+              </span>
+            ) : null}
           </dd>
           <dt className="text-slate-500 dark:text-slate-400">Sign-in</dt>
           <dd className="font-medium">
