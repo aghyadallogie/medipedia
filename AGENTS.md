@@ -271,7 +271,8 @@ Payload 3 has no built-in OAuth and no rotating refresh tokens, so learner auth 
 - **CSRF:** cookie-authenticated state-changing routes refuse `Sec-Fetch-Site: cross-site` and a foreign `Origin`, and require `Content-Type: application/json` (a cross-site form cannot send it). Requests with neither header (mobile, curl, server calls) pass because they carry no ambient cookies. Bodies are capped at 16 KB.
 - Resetting a password revokes every refresh token of the account and confirms the address.
 - The access token's `role` claim is informational. Every request re-reads the user, so deleting or demoting an account takes effect at once.
-- **Known gap (Phase 7):** Payload's own auth routes under `/api/cms/users/*` (login, forgot-password and so on, used by the admin panel) still exist and are not rate limited. The lockout covers password guessing, but Phase 7 should restrict or rate limit them.
+- **Rate limits (Phase 7):** `src/server/rate-limit.ts` holds every rule in `RATE_RULES`. Per client IP: login (10 per 5 minutes), register and forgot-password (5 per hour), reset-password and verify-email (10 per 15 minutes), refresh (120 per minute), Google sign-in (20 per 10 minutes). Per email address in the body, so one mailbox cannot be flooded from many IPs: register and forgot-password (3 per hour). Per signed-in user: the answer endpoint (60 per minute), account deletion (5 per 15 minutes) and a general cap of 240 requests per minute inside `requireUser`, so a real account cannot be used to scrape the content. Payload's own credential routes (`POST /api/cms/users/login`, `forgot-password`, `reset-password`, `unlock`, `first-register`, `verify/*`) are limited to 10 per 5 minutes per IP in `proxy.ts`, which is matched on `/api/cms/users/:path*` for that purpose. Over a limit is `429 rate_limited` with `Retry-After` and `details.retryAfterSeconds`; browser redirects (Google, the refresh redirect) land on `/sign-in` instead of showing JSON. Limits count requests, including failures, and apply whether or not an account exists, so they reveal nothing about who has one.
+- **Rate-limit store:** Upstash Redis through `@upstash/ratelimit` (sliding window), required on Vercel preview and production. Keys are SHA-256 hashes, so neither IPs nor emails are stored there. Without Upstash variables (local development) a per-process in-memory window is used, which is only correct for one server. Limits are off under `NODE_ENV=test`; tests switch them on with `rateLimitTesting`. If Redis is unreachable the request is let through and the error is logged (fail open: a limiter outage must not take sign-in down). The client address is `x-real-ip`, else the first `x-forwarded-for` entry; Vercel sets both at its edge, so a caller cannot choose its own, but behind any other proxy they are only as trustworthy as that proxy.
 - Apple Sign-In will be added when the iOS app ships (App Store requirement). Add it to this doc when we do.
 
 ### Roles & Access
@@ -434,10 +435,10 @@ Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env f
 
 Required from Phase 7:
 
-| Variable                   | Purpose          |
-| -------------------------- | ---------------- |
-| `UPSTASH_REDIS_REST_URL`   | Rate-limit store |
-| `UPSTASH_REDIS_REST_TOKEN` | Rate-limit store |
+| Variable                   | Purpose                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `UPSTASH_REDIS_REST_URL`   | Rate-limit store (set both or neither; required on Vercel preview and production) |
+| `UPSTASH_REDIS_REST_TOKEN` | Rate-limit store                                                                  |
 
 - **Never** commit secrets. `.env` and `.env*.local` are gitignored; `apps/web/.env.example` lists every variable with no secret values.
 - **Never** prefix a secret with `NEXT_PUBLIC_`. Only public config values get that prefix.
@@ -527,10 +528,11 @@ Each phase is shippable and tested before moving on.
 ### Phase 7 — Hardening
 
 - Rate limiting (Upstash) on auth endpoints and the answer endpoint.
+- **Done (rate limiting):** all of the above plus the general per-user cap and Payload's admin credential routes; see §5 for the rules and behaviour. Covered by unit tests (`rate-limit.test.ts`, the proxy and `http` tests, the env rules) and by integration tests that call the real handlers (sign-in, mail flooding, registration, answers). **Not exercised:** a real Upstash database (the Redis path is the library's own and was not run here); set the two variables and watch a `429` on the eleventh bad sign-in from one address before relying on it. Rule values are a first guess to tune once there is traffic.
 - CORS for mobile only if needed (native apps don't trigger CORS; if a future hybrid does, allowlist precisely).
 - Versioned API guarantees documented; `packages/api-client` interface frozen for mobile.
 - Security review; Terms, Privacy and medical disclaimer in place.
-- **Done (Terms and Privacy):** static `/terms` and `/privacy`, open to signed-out visitors (both are in `PUBLIC_PAGES`, §15; also in the footer, the sitemap and a consent line on the sign-up form). The wording describes what the app does today: that the site is members-only, the data it stores (account, answer history, hashed sessions), the session cookies and the browser-only flashcard progress, the processors (Vercel, Neon, Resend, Google), retention, account deletion, and a minimum age of 16. The contact address comes from the optional `NEXT_PUBLIC_CONTACT_EMAIL`; until it is set the pages say the address is not published yet. `LEGAL_UPDATED` in `apps/web/src/lib/legal.ts` is the "last updated" date and must be bumped with every wording change. **Before public launch:** set the contact address, have a lawyer review both texts (they were drafted, not legally reviewed, and name no company, address or governing law), and update them when rate limiting (Upstash, which will process IP addresses) goes in.
+- **Done (Terms and Privacy):** static `/terms` and `/privacy`, open to signed-out visitors (both are in `PUBLIC_PAGES`, §15; also in the footer, the sitemap and a consent line on the sign-up form). The wording describes what the app does today: that the site is members-only, the data it stores (account, answer history, hashed sessions), the session cookies and the browser-only flashcard progress, the processors (Vercel, Neon, Resend, Google), retention, account deletion, and a minimum age of 16. The contact address comes from the optional `NEXT_PUBLIC_CONTACT_EMAIL`; until it is set the pages say the address is not published yet. `LEGAL_UPDATED` in `apps/web/src/lib/legal.ts` is the "last updated" date and must be bumped with every wording change. **Before public launch:** set the contact address, have a lawyer review both texts (they were drafted, not legally reviewed, and name no company, address or governing law), and re-read them whenever a provider is added. Upstash, which stores hashed IP addresses and email addresses for rate limiting, is named as a provider.
 
 **Out of scope for v1** (explicitly): mobile app itself, Apple Sign-In, payments/gating, server-side flashcard sync, full-text search, timed/block question mode, peer percentile comparisons, content importers, E2E tests, Sentry wiring.
 

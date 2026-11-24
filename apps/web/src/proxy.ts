@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { env } from '@/env'
 import { safeReturnTo } from '@/server/auth/google'
 import { verifyAccessToken } from '@/server/auth/tokens'
+import { checkRateLimit, clientIp, RATE_RULES } from '@/server/rate-limit'
 
 /** Pages for visitors who are not signed in. Someone who already is has no use for them. */
 const GUEST_PAGES = new Set(['/sign-in', '/sign-up', '/forgot-password'])
@@ -15,6 +16,13 @@ const GUEST_PAGES = new Set(['/sign-in', '/sign-up', '/forgot-password'])
  * legal pages the sign-up form points to. A new page is members-only unless it is listed here.
  */
 const PUBLIC_PAGES = new Set(['/', '/reset-password', '/verify-email', '/terms', '/privacy'])
+
+/**
+ * Payload's own credential routes, used by the admin panel. They sit outside `/api/v1`, so the route
+ * handlers there cannot limit them; the limit is applied here instead (AGENTS.md §5).
+ */
+const ADMIN_AUTH_ROUTE =
+  /^\/api\/cms\/users\/(login|forgot-password|reset-password|unlock|first-register|verify\/.+)$/
 
 /** Where a signed-in visitor goes instead of a guest page when nothing else was asked for. */
 const HOME_WHEN_SIGNED_IN = '/account'
@@ -34,8 +42,37 @@ const HOME_WHEN_SIGNED_IN = '/account'
  * The refresh cookie is scoped to /api/v1/auth (AGENTS.md §5) and is therefore invisible here, so
  * this cannot refresh by itself: it only decides who needs to go through the endpoint.
  */
+/** A 429 for a flood of attempts at Payload's own sign-in and password routes. */
+async function limitAdminAuth(request: NextRequest): Promise<NextResponse> {
+  if (request.method !== 'POST' || !ADMIN_AUTH_ROUTE.test(request.nextUrl.pathname)) {
+    return NextResponse.next()
+  }
+  const verdict = await checkRateLimit(RATE_RULES.adminAuth, clientIp(request))
+  if (verdict.allowed) return NextResponse.next()
+  return NextResponse.json(
+    {
+      error: {
+        code: 'rate_limited',
+        message: 'Too many requests. Wait a moment and try again.',
+        details: { retryAfterSeconds: verdict.retryAfterSeconds },
+      },
+    },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(verdict.retryAfterSeconds),
+        'Cache-Control': 'private, no-store',
+      },
+    },
+  )
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl
+
+  // Payload's credential routes (matched below): limit them, change nothing else.
+  if (pathname.startsWith('/api/')) return limitAdminAuth(request)
+
   if (PUBLIC_PAGES.has(pathname)) return NextResponse.next()
 
   const token = request.cookies.get(AUTH_COOKIES.access)?.value
@@ -81,6 +118,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   // Every page. Not the APIs (each route checks its own access), the admin panel (Payload has its
   // own login), Next's internals, or files with an extension (icons, images, robots.txt,
-  // sitemap.xml, the manifest). Which pages are open is decided in `PUBLIC_PAGES` above.
-  matcher: ['/((?!api/|admin(?:/|$)|_next/|.*\\..*).*)'],
+  // sitemap.xml, the manifest). Which pages are open is decided in `PUBLIC_PAGES` above. The
+  // second entry is Payload's user routes, which `limitAdminAuth` rate limits.
+  matcher: ['/((?!api/|admin(?:/|$)|_next/|.*\\..*).*)', '/api/cms/users/:path*'],
 }

@@ -25,4 +25,5 @@ export const GOOGLE_ERRORS: Record<string, string> = {
   google: 'Google sign-in did not complete. Try again, or use your email and password.',
   google_cancelled: 'Google sign-in was cancelled.',
   google_unavailable: 'Sign in with Google is not available right now.',
+  rate_limited: 'Too many attempts. Wait a few minutes and try again.',
 }

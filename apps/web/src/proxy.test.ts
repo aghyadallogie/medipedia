@@ -152,3 +152,47 @@ describe('proxy: which requests it sees', () => {
     }
   })
 })
+
+describe('proxy: Payload credential routes', () => {
+  const attempt = async (path: string, ip: string, method = 'POST') => {
+    const response = await proxy(
+      new NextRequest(`http://localhost:3000${path}`, { method, headers: { 'x-real-ip': ip } }),
+    )
+    return { status: response.status, retryAfter: response.headers.get('retry-after') }
+  }
+
+  it('refuses the eleventh sign-in attempt from one address, with Retry-After', async () => {
+    for (let i = 0; i < 10; i++) {
+      expect((await attempt('/api/cms/users/login', '203.0.113.20')).status).toBe(200)
+    }
+    const blocked = await attempt('/api/cms/users/login', '203.0.113.20')
+    expect(blocked.status).toBe(429)
+    expect(Number(blocked.retryAfter)).toBeGreaterThan(0)
+    // Another address is unaffected.
+    expect((await attempt('/api/cms/users/login', '203.0.113.21')).status).toBe(200)
+  })
+
+  it.each([
+    '/api/cms/users/forgot-password',
+    '/api/cms/users/reset-password',
+    '/api/cms/users/unlock',
+    '/api/cms/users/first-register',
+    '/api/cms/users/verify/some-token',
+  ])('counts %s as a credential route', async (path) => {
+    const ip = `198.51.100.${path.length}`
+    for (let i = 0; i < 10; i++) await attempt(path, ip)
+    expect((await attempt(path, ip)).status).toBe(429)
+  })
+
+  it("leaves reads and the admin panel's other calls alone", async () => {
+    for (let i = 0; i < 15; i++) {
+      expect((await attempt('/api/cms/users/me', '192.0.2.30', 'GET')).status).toBe(200)
+      expect((await attempt('/api/cms/users/refresh-token', '192.0.2.30')).status).toBe(200)
+      expect((await attempt('/api/cms/lectures', '192.0.2.30')).status).toBe(200)
+    }
+  })
+
+  it('is part of what the proxy sees', () => {
+    expect(config.matcher).toContain('/api/cms/users/:path*')
+  })
+})

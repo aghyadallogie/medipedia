@@ -4,7 +4,7 @@
  */
 import { AUTH_COOKIES } from '@medipedia/shared'
 import type { Payload } from 'payload'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/cache', () => ({ revalidateTag: vi.fn(), unstable_cache: (fn: unknown) => fn }))
 
@@ -18,6 +18,7 @@ import { POST as verifyPOST } from '@/app/api/v1/auth/verify-email/route'
 import { DELETE as meDELETE, GET as meGET, PATCH as mePATCH } from '@/app/api/v1/me/route'
 import { hashRefreshToken } from '@/server/auth/refresh-tokens'
 
+import { rateLimitTesting } from '@/server/rate-limit'
 import { creator, PASSWORD, startHarness, type Harness } from './harness'
 
 const ORIGIN = 'http://localhost:3000'
@@ -640,5 +641,73 @@ describe('/me', () => {
     })
     expect(leftovers.totalDocs).toBe(0)
     expect((await call(meGET, 'GET', '/api/v1/me', { cookies })).status).toBe(401)
+  })
+})
+
+describe('rate limits', () => {
+  beforeEach(() => {
+    rateLimitTesting.reset()
+    rateLimitTesting.setEnabled(true)
+  })
+  afterEach(() => {
+    rateLimitTesting.setEnabled(false)
+  })
+
+  const from = (ip: string) => ({ headers: { 'x-real-ip': ip } })
+
+  it('refuses sign-in attempts from one address after ten, with Retry-After', async () => {
+    const attempt = () =>
+      post(
+        loginPOST,
+        '/api/v1/auth/login',
+        { email: 'nobody@example.com', password: 'Wrong-password-1!' },
+        from('203.0.113.7'),
+      )
+    for (let i = 0; i < 10; i++) expect((await attempt()).status).toBe(401)
+
+    const blocked = await attempt()
+    expect(blocked.status).toBe(429)
+    expect(blocked.json.error.code).toBe('rate_limited')
+    expect(Number(blocked.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(blocked.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
+  it('counts each address separately', async () => {
+    const attempt = (ip: string) =>
+      post(
+        loginPOST,
+        '/api/v1/auth/login',
+        { email: 'nobody@example.com', password: 'Wrong-password-1!' },
+        from(ip),
+      )
+    for (let i = 0; i < 10; i++) await attempt('203.0.113.8')
+    expect((await attempt('203.0.113.8')).status).toBe(429)
+    expect((await attempt('203.0.113.9')).status).toBe(401)
+  })
+
+  it('limits mail to one address however many addresses ask, and says the same for every email', async () => {
+    const target = email('flooded')
+    const ask = (ip: string, address: string) =>
+      post(forgotPOST, '/api/v1/auth/forgot-password', { email: address }, from(ip))
+
+    for (const ip of ['198.51.100.1', '198.51.100.2', '198.51.100.3']) {
+      expect((await ask(ip, target)).status).toBe(202)
+    }
+    // A fourth request for the same mailbox is refused even from a fresh address, and whether or
+    // not an account exists makes no difference.
+    expect((await ask('198.51.100.4', target)).status).toBe(429)
+    expect((await ask('198.51.100.4', email('someone-else'))).status).toBe(202)
+  })
+
+  it('limits registrations from one address', async () => {
+    const register = () =>
+      post(
+        registerPOST,
+        '/api/v1/auth/register',
+        { email: email('signup'), password: PASSWORD, name: 'Sign Up' },
+        from('192.0.2.50'),
+      )
+    for (let i = 0; i < 5; i++) expect((await register()).status).toBe(202)
+    expect((await register()).status).toBe(429)
   })
 })

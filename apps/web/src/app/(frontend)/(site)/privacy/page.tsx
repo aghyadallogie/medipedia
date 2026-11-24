@@ -111,6 +111,11 @@ export default function PrivacyPage() {
           <li>Vercel: hosts the site and stores uploaded images.</li>
           <li>Neon: hosts the database that holds accounts and answers.</li>
           <li>Resend: sends the confirmation and password-reset emails.</li>
+          <li>
+            Upstash: counts requests so that no one can try passwords or flood the site. It sees
+            only scrambled (hashed) versions of IP addresses and email addresses, kept for minutes
+            to hours.
+          </li>
           <li>Google: only if you choose to sign in with Google.</li>
         </Bullets>
         <p>

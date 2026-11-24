@@ -70,7 +70,21 @@ describe('parseServerEnv', () => {
     ).toBe('id')
   })
 
+  it('needs both Redis credentials or neither', () => {
+    expect(() =>
+      parseServerEnv({ ...valid, UPSTASH_REDIS_REST_URL: 'https://example.upstash.io' }),
+    ).toThrowError(/Set both UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN/)
+    expect(() =>
+      parseServerEnv({ ...valid, UPSTASH_REDIS_REST_TOKEN: 'redis-token' }),
+    ).toThrowError(/Set both UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN/)
+    expect(parseServerEnv(valid).UPSTASH_REDIS_REST_URL).toBeUndefined()
+  })
+
   describe('on Vercel', () => {
+    const redis = {
+      UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+      UPSTASH_REDIS_REST_TOKEN: 'redis-token',
+    }
     const deployed = { ...valid, BLOB_READ_WRITE_TOKEN: 'token' }
 
     it('requires email settings on preview and production', () => {
@@ -82,11 +96,24 @@ describe('parseServerEnv', () => {
         expect(
           parseServerEnv({
             ...deployed,
+            ...redis,
             VERCEL_ENV,
             RESEND_API_KEY: 'key',
             EMAIL_FROM: 'Medipedia <hello@example.com>',
           }).VERCEL_ENV,
         ).toBe(VERCEL_ENV)
+      }
+    })
+
+    it('requires the Redis rate-limit store on preview and production', () => {
+      const mail = { RESEND_API_KEY: 'key', EMAIL_FROM: 'Medipedia <hello@example.com>' }
+      for (const VERCEL_ENV of ['preview', 'production']) {
+        expect(() => parseServerEnv({ ...deployed, ...mail, VERCEL_ENV })).toThrowError(
+          /UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required/,
+        )
+        expect(
+          parseServerEnv({ ...deployed, ...mail, ...redis, VERCEL_ENV }).UPSTASH_REDIS_REST_URL,
+        ).toBe('https://example.upstash.io')
       }
     })
 

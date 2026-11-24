@@ -76,6 +76,27 @@ const ServerEnvSchema = z
       path: ['RESEND_API_KEY'],
     },
   )
+  // Rate limits must be shared by every serverless instance, so Vercel deployments need Redis.
+  .refine(
+    (env) =>
+      env.VERCEL_ENV === undefined ||
+      env.VERCEL_ENV === 'development' ||
+      (env.UPSTASH_REDIS_REST_URL !== undefined && env.UPSTASH_REDIS_REST_TOKEN !== undefined),
+    {
+      message:
+        'UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required on Vercel preview and production deployments',
+      path: ['UPSTASH_REDIS_REST_URL'],
+    },
+  )
+  // Rate limiting needs both halves of the credential pair.
+  .refine(
+    (env) =>
+      (env.UPSTASH_REDIS_REST_URL === undefined) === (env.UPSTASH_REDIS_REST_TOKEN === undefined),
+    {
+      message: 'Set both UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or neither',
+      path: ['UPSTASH_REDIS_REST_TOKEN'],
+    },
+  )
   // Google sign-in needs both halves of the credential pair.
   .refine(
     (env) => (env.GOOGLE_CLIENT_ID === undefined) === (env.GOOGLE_CLIENT_SECRET === undefined),

@@ -5,6 +5,7 @@
  */
 import type { User } from '@/payload-types'
 import { getClient } from '@/server/payload'
+import { enforceRateLimit, RATE_RULES } from '@/server/rate-limit'
 
 import { unauthorized } from './http'
 
@@ -18,9 +19,13 @@ export async function authenticateHeaders(headers: Headers): Promise<User | null
 
 export const authenticateRequest = (request: Request) => authenticateHeaders(request.headers)
 
-/** For routes that need a signed-in user: a missing or invalid token is a 401. */
+/**
+ * For routes that need a signed-in user: a missing or invalid token is a 401, and a user over the
+ * general per-account request limit is a 429.
+ */
 export async function requireUser(request: Request): Promise<User> {
   const user = await authenticateRequest(request)
   if (!user) throw unauthorized()
+  await enforceRateLimit(RATE_RULES.api, user.id)
   return user
 }

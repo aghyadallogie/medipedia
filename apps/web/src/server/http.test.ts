@@ -48,6 +48,20 @@ describe('errorResponse', () => {
     expect(Array.isArray(body.error.details)).toBe(true)
   })
 
+  it('adds Retry-After to a rate_limited error', async () => {
+    const res = errorResponse(new ApiError('rate_limited', 'Slow down.', { retryAfterSeconds: 42 }))
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('42')
+    expect(res.headers.get('Cache-Control')).toBe(CACHE_CONTROL.private)
+  })
+
+  it('omits Retry-After when there is no wait to report', () => {
+    expect(
+      errorResponse(new ApiError('rate_limited', 'Slow down.')).headers.get('Retry-After'),
+    ).toBe(null)
+    expect(errorResponse(new ApiError('not_found', 'Nope.')).headers.get('Retry-After')).toBeNull()
+  })
+
   it('hides unknown errors behind a generic 500', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = errorResponse(new Error('database password is hunter2'))
