@@ -67,24 +67,88 @@ describe('proxy: guest pages', () => {
   })
 })
 
-describe('proxy: protected pages', () => {
-  it('lets a signed-in visitor through', async () => {
-    const { status } = await visit('/account', { [AUTH_COOKIES.access]: await accessToken() })
+describe('proxy: members-only pages', () => {
+  it.each([
+    '/account',
+    '/practice',
+    '/practice/analytics',
+    '/lectures',
+    '/lectures/some-slug',
+    '/papers',
+    '/videos',
+    '/domains',
+    '/flashcards/acs',
+    '/anything-else',
+  ])('lets a signed-in visitor through to %s', async (path) => {
+    const { status } = await visit(path, { [AUTH_COOKIES.access]: await accessToken() })
     expect(status).toBe(200)
   })
 
-  it('sends everyone else through the refresh endpoint', async () => {
-    const { status, location } = await visit('/account')
+  it('sends a visitor with no session straight to the sign-in page, coming back afterwards', async () => {
+    const { status, location } = await visit('/lectures/some-slug?tab=notes')
     expect(status).toBe(307)
-    expect(location?.pathname).toBe('/api/v1/auth/refresh')
-    expect(location?.searchParams.get('next')).toBe('/account')
+    expect(location?.pathname).toBe('/sign-in')
+    expect(location?.searchParams.get('next')).toBe('/lectures/some-slug?tab=notes')
   })
 
-  it('keeps the practice questions behind a login too, and renews the session back to them', async () => {
-    expect(config.matcher).toContain('/practice/:path*')
-    const { status, location } = await visit('/practice')
-    expect(status).toBe(307)
-    expect(location?.pathname).toBe('/api/v1/auth/refresh')
+  it('ignores a garbage access token like no token', async () => {
+    const { location } = await visit('/practice', { [AUTH_COOKIES.access]: 'garbage' })
+    expect(location?.pathname).toBe('/sign-in')
     expect(location?.searchParams.get('next')).toBe('/practice')
+  })
+
+  it('renews a session that may still be alive (hint cookie) through the refresh endpoint', async () => {
+    for (const path of ['/account', '/practice', '/lectures']) {
+      const { status, location } = await visit(path, { [AUTH_COOKIES.hint]: '1' })
+      expect(status).toBe(307)
+      expect(location?.pathname).toBe('/api/v1/auth/refresh')
+      expect(location?.searchParams.get('next')).toBe(path)
+    }
+  })
+})
+
+describe('proxy: public pages', () => {
+  it.each(['/', '/reset-password', '/verify-email', '/terms', '/privacy'])(
+    'shows %s to a visitor who is not signed in',
+    async (path) => {
+      const { status, location } = await visit(path)
+      expect(status).toBe(200)
+      expect(location).toBeNull()
+    },
+  )
+
+  it('keeps the query string of an email link intact', async () => {
+    expect((await visit('/reset-password?token=abc')).location).toBeNull()
+    expect((await visit('/verify-email?token=abc')).location).toBeNull()
+  })
+})
+
+describe('proxy: which requests it sees', () => {
+  const [pattern] = config.matcher
+  const sees = (path: string) => new RegExp(`^${pattern}$`).test(path)
+
+  it('covers pages', () => {
+    for (const path of ['/', '/lectures', '/practice/analytics', '/sign-in', '/administrator']) {
+      expect(sees(path)).toBe(true)
+    }
+  })
+
+  it('leaves out the APIs, the admin panel, Next internals and files with an extension', () => {
+    for (const path of [
+      '/api/v1/me',
+      '/api/cms/users/login',
+      '/admin',
+      '/admin/collections/lectures',
+      '/_next/static/chunk.js',
+      '/_next/image',
+      '/icon.png',
+      '/apple-icon.png',
+      '/logo.png',
+      '/robots.txt',
+      '/sitemap.xml',
+      '/manifest.webmanifest',
+    ]) {
+      expect(sees(path)).toBe(false)
+    }
   })
 })

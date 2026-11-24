@@ -18,7 +18,7 @@ export default function SignUpPage() {
     <Container>
       <AuthCard
         title="Create an account"
-        description="Free. Lectures, papers and videos stay open to everyone; an account unlocks the question bank."
+        description="Free. An account gives you the lectures, flashcards, practice questions, papers and videos."
       >
         <SignUpForm googleEnabled={googleDeps.getConfig() !== null} />
       </AuthCard>

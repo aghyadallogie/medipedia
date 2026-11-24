@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-type Item = { href: string; label: string; prefetch?: false }
+import type { NavItem } from '@/components/main-nav'
+import { useSignedInHint } from '@/lib/use-signed-in'
 
 /** Longer than the exit animation. Only used if `animationend` never fires. */
 const EXIT_FALLBACK_MS = 400
@@ -16,7 +17,8 @@ const EXIT_FALLBACK_MS = 400
  * The panel animates in and out. React would remove it instantly, so it stays mounted
  * (`rendered`) while its exit animation plays and is removed when that animation ends.
  */
-export function MobileNav({ items }: { items: readonly Item[] }) {
+export function MobileNav({ items }: { items: readonly NavItem[] }) {
+  const signedIn = useSignedInHint()
   const pathname = usePathname()
   // Remember which page the menu was opened on. Navigating elsewhere then closes it by itself,
   // without an effect that sets state.
@@ -51,6 +53,9 @@ export function MobileNav({ items }: { items: readonly Item[] }) {
     const timer = setTimeout(() => setRendered(false), EXIT_FALLBACK_MS)
     return () => clearTimeout(timer)
   }, [closing])
+
+  // Everything in the menu is for signed-in learners (see MainNav).
+  if (!signedIn) return null
 
   return (
     <div className="sm:hidden">
@@ -103,7 +108,7 @@ export function MobileNav({ items }: { items: readonly Item[] }) {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={item.prefetch}
+                prefetch={false}
                 onClick={close}
                 // The links rise in one after another while the panel opens.
                 style={open ? { animationDelay: `${60 + index * 45}ms` } : undefined}

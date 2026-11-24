@@ -3,17 +3,14 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 import { AuthNav } from '@/components/auth/auth-nav'
+import { MainNav, type NavItem } from '@/components/main-nav'
 import { MobileNav } from '@/components/mobile-nav'
 import { SITE_NAME } from '@/lib/seo'
-
-type NavItem = { href: string; label: string; prefetch?: false }
 
 const NAV: readonly NavItem[] = [
   { href: '/lectures', label: 'Lectures' },
   { href: '/flashcards', label: 'Flashcards' },
-  // Signed-out visitors are redirected through the refresh endpoint, which must not run as a
-  // background prefetch (see AuthNav).
-  { href: '/practice', label: 'Practice', prefetch: false },
+  { href: '/practice', label: 'Practice' },
   { href: '/papers', label: 'Papers' },
   { href: '/videos', label: 'Videos' },
   { href: '/domains', label: 'Domains' },
@@ -34,18 +31,7 @@ export function SiteHeader() {
           />
           {SITE_NAME}
         </Link>
-        <nav aria-label="Main" className="hidden items-center gap-1 text-sm sm:flex">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={item.prefetch}
-              className="nav-link rounded-md px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <MainNav items={NAV} />
         <div className="flex items-center gap-1">
           <AuthNav />
           <MobileNav items={NAV} />

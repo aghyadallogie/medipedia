@@ -1,29 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useSyncExternalStore } from 'react'
 
-import { AUTH_CHANGE_EVENT, hasSessionHint } from '@/lib/web-api'
-
-function subscribe(onChange: () => void) {
-  window.addEventListener(AUTH_CHANGE_EVENT, onChange)
-  // Another tab may have signed in or out.
-  window.addEventListener('focus', onChange)
-  window.addEventListener('pageshow', onChange)
-  return () => {
-    window.removeEventListener(AUTH_CHANGE_EVENT, onChange)
-    window.removeEventListener('focus', onChange)
-    window.removeEventListener('pageshow', onChange)
-  }
-}
+import { useSignedInHint } from '@/lib/use-signed-in'
 
 /**
  * "Sign in" or "Account" in the header. The page itself stays static and cacheable: whether
  * someone is signed in is read in the browser from a hint cookie (no request, no secret in it).
- * The server snapshot says "signed out", so there is no hydration mismatch.
  */
 export function AuthNav() {
-  const signedIn = useSyncExternalStore(subscribe, hasSessionHint, () => false)
+  const signedIn = useSignedInHint()
   return (
     <Link
       href={signedIn ? '/account' : '/sign-in'}

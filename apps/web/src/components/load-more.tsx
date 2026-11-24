@@ -1,11 +1,11 @@
 'use client'
 
-import { createApiClient } from '@medipedia/api-client'
 import type { LectureSummary, PaperSummary, VideoSummary } from '@medipedia/shared'
 import { useState } from 'react'
 
 import { CardGrid, LectureCard, PaperCard, VideoCard } from '@/components/cards'
 import { pressable } from '@/components/motion'
+import { webApi } from '@/lib/web-api'
 
 type Loaded =
   | { kind: 'lectures'; item: LectureSummary }
@@ -33,7 +33,7 @@ export function LoadMore({ kind, initialCursor, domain, pageSize }: Props) {
     if (cursor === null || status === 'loading') return
     setStatus('loading')
     try {
-      const api = createApiClient({ baseUrl: window.location.origin })
+      const api = webApi()
       const query = { cursor, limit: pageSize, ...(domain ? { domain } : {}) }
       let next: Loaded[]
       let nextCursor: string | null

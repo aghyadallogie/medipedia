@@ -27,10 +27,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
 
   return (
     <Container>
-      <AuthCard
-        title="Sign in"
-        description="Sign in to answer practice questions and see how you are doing."
-      >
+      <AuthCard title="Sign in" description="Sign in to pick up where you left off.">
         <SignInForm
           next={safeReturnTo(first(params.next))}
           googleEnabled={googleDeps.getConfig() !== null}
