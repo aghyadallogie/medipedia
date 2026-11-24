@@ -106,3 +106,24 @@ describe('parsePublicEnv', () => {
     })
   })
 })
+
+describe('parsePublicEnv contact address', () => {
+  const site = { NEXT_PUBLIC_SITE_URL: 'https://example.com' }
+
+  it('is optional, and an empty value counts as unset', () => {
+    expect(parsePublicEnv(site).NEXT_PUBLIC_CONTACT_EMAIL).toBeUndefined()
+    expect(
+      parsePublicEnv({ ...site, NEXT_PUBLIC_CONTACT_EMAIL: '' }).NEXT_PUBLIC_CONTACT_EMAIL,
+    ).toBeUndefined()
+  })
+
+  it('accepts an email address and rejects anything else', () => {
+    expect(
+      parsePublicEnv({ ...site, NEXT_PUBLIC_CONTACT_EMAIL: 'privacy@example.com' })
+        .NEXT_PUBLIC_CONTACT_EMAIL,
+    ).toBe('privacy@example.com')
+    expect(() =>
+      parsePublicEnv({ ...site, NEXT_PUBLIC_CONTACT_EMAIL: 'not an email' }),
+    ).toThrowError(/NEXT_PUBLIC_CONTACT_EMAIL/)
+  })
+})

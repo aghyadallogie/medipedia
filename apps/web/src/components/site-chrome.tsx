@@ -52,8 +52,22 @@ export function SiteFooter() {
           {SITE_NAME} is not medical advice and must not be used to diagnose or treat patients.
           Always follow current clinical guidelines and your institution&apos;s protocols.
         </p>
-        <p>
-          © {new Date().getUTCFullYear()} {SITE_NAME}
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span>
+            © {new Date().getUTCFullYear()} {SITE_NAME}
+          </span>
+          <Link
+            href="/terms"
+            className="py-1 hover:text-slate-900 hover:underline dark:hover:text-white"
+          >
+            Terms
+          </Link>
+          <Link
+            href="/privacy"
+            className="py-1 hover:text-slate-900 hover:underline dark:hover:text-white"
+          >
+            Privacy
+          </Link>
         </p>
       </div>
     </footer>

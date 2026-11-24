@@ -417,19 +417,20 @@ All content collections have `accessTier: 'free' | 'premium'`. In v1, **all cont
 
 Validated at boot in `env.ts` (also imported by `next.config.ts`, so a bad env fails the build). A variable stays optional in `env.ts` until the phase that first uses it, then becomes required: Phase 1 needs `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `PAYLOAD_SECRET` and `NEXT_PUBLIC_SITE_URL`; `BLOB_READ_WRITE_TOKEN` is optional locally, where uploads fall back to `apps/web/media`, and required on Vercel preview and production (`VERCEL_ENV`); Phase 4 makes `JWT_SECRET` (at least 32 characters, different from `PAYLOAD_SECRET`) required everywhere, and `RESEND_API_KEY` and `EMAIL_FROM` required on Vercel preview and production; locally, without them, emails are written to the server console.
 
-| Variable                   | Purpose                                                                 |
-| -------------------------- | ----------------------------------------------------------------------- |
-| `DATABASE_URL`             | Neon pooled connection string (runtime)                                 |
-| `DATABASE_URL_UNPOOLED`    | Neon direct connection string (migrations)                              |
-| `PAYLOAD_SECRET`           | Payload's own signing secret (admin panel)                              |
-| `JWT_SECRET`               | Learner access-token signing secret (different from `PAYLOAD_SECRET`)   |
-| `BLOB_READ_WRITE_TOKEN`    | Vercel Blob storage                                                     |
-| `GOOGLE_CLIENT_ID`         | Google OAuth                                                            |
-| `GOOGLE_CLIENT_SECRET`     | Google OAuth (set both or neither; without them Google sign-in is off)  |
-| `GOOGLE_MOBILE_CLIENT_IDS` | Comma-separated native-app client IDs accepted by `/auth/google/mobile` |
-| `RESEND_API_KEY`           | Transactional email                                                     |
-| `EMAIL_FROM`               | Sender address for transactional email                                  |
-| `NEXT_PUBLIC_SITE_URL`     | Canonical site URL (SEO, OAuth redirect, email links)                   |
+| Variable                    | Purpose                                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`              | Neon pooled connection string (runtime)                                                             |
+| `DATABASE_URL_UNPOOLED`     | Neon direct connection string (migrations)                                                          |
+| `PAYLOAD_SECRET`            | Payload's own signing secret (admin panel)                                                          |
+| `JWT_SECRET`                | Learner access-token signing secret (different from `PAYLOAD_SECRET`)                               |
+| `BLOB_READ_WRITE_TOKEN`     | Vercel Blob storage                                                                                 |
+| `GOOGLE_CLIENT_ID`          | Google OAuth                                                                                        |
+| `GOOGLE_CLIENT_SECRET`      | Google OAuth (set both or neither; without them Google sign-in is off)                              |
+| `GOOGLE_MOBILE_CLIENT_IDS`  | Comma-separated native-app client IDs accepted by `/auth/google/mobile`                             |
+| `RESEND_API_KEY`            | Transactional email                                                                                 |
+| `EMAIL_FROM`                | Sender address for transactional email                                                              |
+| `NEXT_PUBLIC_SITE_URL`      | Canonical site URL (SEO, OAuth redirect, email links)                                               |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Optional. Public address for privacy requests, shown on `/terms` and `/privacy` (set before launch) |
 
 Required from Phase 7:
 
@@ -490,7 +491,7 @@ Each phase is shippable and tested before moving on.
 - Public read API (`/api/v1/...`) for domains, topics, lectures, papers, videos, flashcards and question stats, with mobile-friendly shapes and server-rendered rich-text HTML.
 - `packages/api-client` created with methods for every endpoint built so far.
 - **Done:** all of the above. Pages: `/`, `/lectures`, `/papers`, `/videos`, `/domains` and their detail pages, plus `sitemap.xml` and `robots.txt`. Verified by unit tests, by integration tests that run the real route handlers and the typed client against Postgres, by a production build, and by looking at the pages in a browser.
-- **Not built (decided):** no topic pages (topics group flashcards and questions, which come in Phases 5 and 6); a domain page lists only content assigned directly to that domain, not its sub-domains' content; no search; no Terms or Privacy pages yet (Phase 7); no custom 404 for URLs outside any route group.
+- **Not built (decided):** no topic pages (topics group flashcards and questions, which come in Phases 5 and 6); a domain page lists only content assigned directly to that domain, not its sub-domains' content; no search; no Terms or Privacy pages yet (added in Phase 7); no custom 404 for URLs outside any route group.
 
 ### Phase 4 — Learner Auth
 
@@ -529,6 +530,7 @@ Each phase is shippable and tested before moving on.
 - CORS for mobile only if needed (native apps don't trigger CORS; if a future hybrid does, allowlist precisely).
 - Versioned API guarantees documented; `packages/api-client` interface frozen for mobile.
 - Security review; Terms, Privacy and medical disclaimer in place.
+- **Done (Terms and Privacy):** static `/terms` and `/privacy`, open to signed-out visitors (both are in `PUBLIC_PAGES`, §15; also in the footer, the sitemap and a consent line on the sign-up form). The wording describes what the app does today: that the site is members-only, the data it stores (account, answer history, hashed sessions), the session cookies and the browser-only flashcard progress, the processors (Vercel, Neon, Resend, Google), retention, account deletion, and a minimum age of 16. The contact address comes from the optional `NEXT_PUBLIC_CONTACT_EMAIL`; until it is set the pages say the address is not published yet. `LEGAL_UPDATED` in `apps/web/src/lib/legal.ts` is the "last updated" date and must be bumped with every wording change. **Before public launch:** set the contact address, have a lawyer review both texts (they were drafted, not legally reviewed, and name no company, address or governing law), and update them when rate limiting (Upstash, which will process IP addresses) goes in.
 
 **Out of scope for v1** (explicitly): mobile app itself, Apple Sign-In, payments/gating, server-side flashcard sync, full-text search, timed/block question mode, peer percentile comparisons, content importers, E2E tests, Sentry wiring.
 
